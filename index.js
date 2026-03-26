@@ -1,5 +1,5 @@
 /* ── ADMIN LOGIN (from index page) ───────────────────────── */
-const ADMIN_PASSWORD = 'jahim297'; // Must match admin.js
+const ADMIN_PASSWORD = 'adminjahim'; // Must match admin.js
 
 function openAdminPanel() {
   document.getElementById('adminPanel').classList.add('open');
