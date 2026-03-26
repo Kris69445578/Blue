@@ -16,7 +16,7 @@ function doLogin() {
   const pw = document.getElementById('loginPassword').value;
   if (pw === ADMIN_PASSWORD) {
     sessionStorage.setItem('admin_auth', '1');
-    window.location.href = 'admin.html';
+    window.location.href = 'admin.htm';
   } else {
     document.getElementById('loginError').classList.add('show');
     document.getElementById('loginPassword').value = '';
