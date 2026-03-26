@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eFootball Tournament — Live Standings</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+<!-- ADMIN LOGIN MODAL -->
+<div id="adminPanel">
+  <div class="login-box">
+    <button class="login-close" onclick="closeAdminPanel()">✕</button>
+    <div class="login-logo">
+      <div class="logo-ico">⚽</div>
+      <div class="logo-txt">e<span>Football</span> Tournament</div>
+    </div>
+    <h2>Admin Access</h2>
+    <p>Enter your password to access the admin panel.</p>
+    <div class="login-field">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter password…" autocomplete="current-password">
+    </div>
+    <div class="login-error" id="loginError">Incorrect password. Please try again.</div>
+    <button class="btn-login" onclick="doLogin()">🔐 Sign In to Admin Panel</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="hdr">
+    <div class="logo">
+      <div class="logo-ico">⚽</div>
+      <div class="logo-txt">e<span>Football</span> Tournament</div>
+    </div>
+    <span class="live-dot hidden" id="liveTag">Live</span>
+  </div>
+</header>
+
+<!-- TICKER -->
+<div class="ticker-wrap hidden" id="tickerWrap">
+  <div class="ticker-inner" id="tickerInner"></div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <h1>Tournament <span>Standings</span></h1>
+    <p class="hero-sub">Updated automatically when the admin publishes new results.</p>
+    <div class="hero-stats" id="heroStats" style="display:none">
+      <div class="hstat">
+        <div class="hstat-val" id="statPlayers">—</div>
+        <div class="hstat-lbl">Players</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-val" id="statMatches">—</div>
+        <div class="hstat-lbl">Results In</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-val" id="statLeader">—</div>
+        <div class="hstat-lbl">Leader</div>
+      </div>
+    </div>
+    <div id="lastUpdated"></div>
+  </div>
+</div>
+
+<main>
+
+  <!-- PODIUM -->
+  <div id="podiumSection" class="hidden podium-section">
+    <p class="section-title">Top 3</p>
+    <div class="podium" id="podiumContainer"></div>
+  </div>
+
+  <!-- MAIN CARD -->
+  <div class="card" style="margin-top:24px">
+    <div class="card-head">
+      <span class="card-title">🏆 Tournament Overview</span>
+      <div class="card-right">
+        <span class="tag tg-blue hidden" id="totalMatchTag"></span>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this,'t-standings')">📊 League Table</button>
+      <button class="tab" onclick="switchTab(this,'t-fixtures')">📅 Fixtures</button>
+      <button class="tab" onclick="switchTab(this,'t-results')">🎯 Results</button>
+    </div>
+
+    <!-- STANDINGS -->
+    <div class="tab-panel active" id="t-standings">
+      <div id="standingsContainer">
+        <div class="empty">
+          <div class="eico">🏟️</div>
+          <h3>No data yet</h3>
+          <p>Waiting for the admin to publish the first results.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FIXTURES -->
+    <div class="tab-panel" id="t-fixtures">
+      <div id="fixturesContainer">
+        <div class="empty">
+          <div class="eico">📅</div>
+          <h3>No fixtures yet</h3>
+          <p>Fixtures will appear once the admin generates them.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="tab-panel" id="t-results">
+      <div id="resultsContainer">
+        <div class="empty">
+          <div class="eico">🎯</div>
+          <h3>No results yet</h3>
+          <p>Match results will appear here once entered by the admin.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  eFootball Tournament · <button id="adminLink" onclick="openAdminPanel()">Admin Panel</button> · Refreshes every 15 seconds
+</footer>
+
+<script src="index.js"></script>
+</body>
+</html>
