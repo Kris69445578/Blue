@@ -1,5 +1,5 @@
 /* ── AUTH ──────────────────────────────────────────────────── */
-const ADMIN_PASSWORD = 'admin123'; // Change this password
+const ADMIN_PASSWORD = 'adminjahim'; // Change this password
 
 function checkLogin() {
   if (sessionStorage.getItem('admin_auth') === '1') {
@@ -30,6 +30,84 @@ checkLogin();
 let players = [], fixtures = [];
 
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
+
+/* ── PERSISTENCE ──────────────────────────────────────────── */
+const DRAFT_KEY = 'efootball_admin_draft';
+
+function saveDraft() {
+  // Snapshot current score inputs into fixtures before saving
+  fixtures.forEach(ro => {
+    ro.matches.forEach(m => {
+      const he = document.getElementById('hs_' + m.id);
+      const ae = document.getElementById('as_' + m.id);
+      if (he) m.homeScore = he.value;
+      if (ae) m.awayScore = ae.value;
+    });
+  });
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({ players, fixtures }));
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    if (!draft.players || !draft.players.length) return;
+
+    players = draft.players;
+    fixtures = draft.fixtures || [];
+
+    // Restore the player textarea
+    document.getElementById('playerInput').value = players.join('\n');
+
+    // Show player tag
+    const tag = document.getElementById('playerTag');
+    tag.classList.remove('hidden');
+    tag.textContent = '✓ ' + players.length + ' players';
+
+    if (fixtures.length) {
+      renderFixtures();
+      renderResultsTable();
+      show('fixturesSection');
+      show('resultsSection');
+
+      // Restore saved scores into the inputs
+      fixtures.forEach(ro => {
+        ro.matches.forEach(m => {
+          const he = document.getElementById('hs_' + m.id);
+          const ae = document.getElementById('as_' + m.id);
+          if (he && m.homeScore !== '') he.value = m.homeScore;
+          if (ae && m.awayScore !== '') ae.value = m.awayScore;
+          if (m.homeScore !== '' || m.awayScore !== '') mark(m.id);
+        });
+      });
+
+      showDraftBanner();
+    }
+  } catch (e) {
+    console.warn('Could not restore draft:', e);
+  }
+}
+
+function showDraftBanner() {
+  const banner = document.getElementById('draftBanner');
+  if (banner) banner.classList.remove('hidden');
+}
+
+function clearDraft() {
+  if (!confirm('Clear all saved data and start fresh?')) return;
+  localStorage.removeItem(DRAFT_KEY);
+  players = [];
+  fixtures = [];
+  document.getElementById('playerInput').value = '';
+  document.getElementById('playerTag').classList.add('hidden');
+  document.getElementById('fixturesSection').classList.add('hidden');
+  document.getElementById('resultsSection').classList.add('hidden');
+  document.getElementById('standingsSection').classList.add('hidden');
+  document.getElementById('draftBanner').classList.add('hidden');
+  document.getElementById('publishBox').classList.remove('show');
+  window._data = null;
+}
 
 /* ── GENERATE ─────────────────────────────────────────────── */
 function generateFixtures() {
@@ -68,6 +146,8 @@ function generateFixtures() {
   renderResultsTable();
   show('fixturesSection');
   show('resultsSection');
+  showDraftBanner();
+  saveDraft();
   document.getElementById('fixturesSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -119,15 +199,34 @@ function renderResultsTable() {
       html += `<tr>
         <td style="color:var(--dim);font-size:.78rem">${idx++}</td>
         <td class="pname">${m.home} <span class="lbadge ${bc}">${bt}</span></td>
-        <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="hs_${m.id}" placeholder="–" oninput="mark(${m.id})" onchange="mark(${m.id})"></td>
+        <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="hs_${m.id}" placeholder="–" oninput="onScoreInput(${m.id})" onchange="onScoreInput(${m.id})"></td>
         <td style="text-align:center"><span class="sc">:</span></td>
-        <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="as_${m.id}" placeholder="–" oninput="mark(${m.id})" onchange="mark(${m.id})"></td>
+        <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="as_${m.id}" placeholder="–" oninput="onScoreInput(${m.id})" onchange="onScoreInput(${m.id})"></td>
         <td class="pname">${m.away}</td>
         <td id="st_${m.id}" style="font-size:.8rem;color:var(--dim)">—</td>
       </tr>`;
     });
   });
   document.getElementById('resultsBody').innerHTML = html;
+}
+
+/* ── SCORE INPUT: mark + debounced autosave ───────────────── */
+let saveTimer = null;
+
+function onScoreInput(id) {
+  mark(id);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveDraft();
+    flashSaveIndicator();
+  }, 800);
+}
+
+function flashSaveIndicator() {
+  const el = document.getElementById('saveIndicator');
+  if (!el) return;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 2000);
 }
 
 /* ── MARK RESULT ──────────────────────────────────────────── */
@@ -175,6 +274,7 @@ function calculateStandings() {
   mp.classList.remove('hidden');
   mp.textContent = played + ' results entered';
   show('standingsSection');
+  saveDraft();
   document.getElementById('standingsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -217,7 +317,11 @@ function publishData() {
     })
   }));
   localStorage.setItem('efootball_tournament', JSON.stringify(window._data));
+  saveDraft();
   const pb = document.getElementById('publishBox');
   pb.classList.add('show');
   pb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+
+/* ── INIT ─────────────────────────────────────────────────── */
+loadDraft();
