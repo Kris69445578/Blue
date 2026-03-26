@@ -64,7 +64,17 @@ table.stable tbody tr:nth-child(3) td:first-child{color:#cd7f32;font-weight:700}
 .pub-box p{font-size:.875rem;color:var(--green);font-weight:500}
 .pub-box a{color:var(--green);font-weight:700}
 
-/* LOGIN OVERLAY */
+/* DRAFT BANNER */
+.draft-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 18px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.22);border-radius:10px;margin-bottom:20px;font-size:.84rem;color:var(--muted)}
+.draft-banner.hidden{display:none}
+.draft-clear{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:var(--red);font-size:.78rem;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
+.draft-clear:hover{background:rgba(239,68,68,.2);transform:translateY(-1px)}
+
+/* AUTOSAVE INDICATOR */
+#saveIndicator{position:fixed;bottom:24px;right:24px;background:var(--card);border:1px solid var(--green);color:var(--green);font-size:.78rem;font-weight:600;padding:8px 14px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.4);opacity:0;transform:translateY(6px);transition:opacity .25s,transform .25s;pointer-events:none;z-index:200}
+#saveIndicator.visible{opacity:1;transform:translateY(0)}
+
+
 #loginOverlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px}
 .login-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
 .login-logo{display:flex;align-items:center;gap:10px;margin-bottom:28px}
