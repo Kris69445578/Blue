@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — eFootball Tournament</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-ico">⚽</div>
+      <div class="logo-txt">e<span>Football</span> Admin</div>
+    </div>
+    <h2>Admin Access</h2>
+    <p>Enter your password to manage the tournament.</p>
+    <div class="login-field">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter password…" autocomplete="current-password">
+    </div>
+    <div class="login-error" id="loginError">Incorrect password. Please try again.</div>
+    <button class="btn btn-blue btn-login" onclick="doLogin()">🔐 Sign In</button>
+  </div>
+</div>
+
+<!-- AUTOSAVE INDICATOR -->
+<div id="saveIndicator">✓ Draft saved</div>
+
+<!-- HEADER -->
+<header>
+  <div class="hdr">
+    <div class="logo">
+      <div class="logo-ico">⚽</div>
+      <div class="logo-txt">e<span>Football</span> Admin</div>
+    </div>
+    <a href="index.html" style="color:var(--muted);font-size:.82rem;text-decoration:none;">← Public View</a>
+  </div>
+</header>
+
+<main>
+  <div class="pg-hdr">
+    <h1>Tournament Admin</h1>
+    <p>Manage players, fixtures, results and publish live standings.</p>
+  </div>
+
+  <!-- DRAFT BANNER -->
+  <div class="draft-banner hidden" id="draftBanner">
+    <span>📝 You have a saved draft. Your progress has been restored.</span>
+    <button class="draft-clear" onclick="clearDraft()">Clear Draft</button>
+  </div>
+
+  <!-- STEP 1: PLAYERS -->
+  <div class="card">
+    <div class="card-head" style="display:flex;align-items:center;">
+      <span class="step-n" id="step1n">1</span>
+      <div class="head-info" style="margin-left:14px;">
+        <h2>Add Players</h2>
+        <p>Enter one player name per line</p>
+      </div>
+      <div class="head-right">
+        <span class="tag tg-blue hidden" id="playerTag"></span>
+      </div>
+    </div>
+    <div class="card-body" style="padding:24px;">
+      <label class="field-lbl" for="playerInput">Player Names</label>
+      <textarea id="playerInput" rows="8" placeholder="Player One&#10;Player Two&#10;Player Three&#10;Player Four&#10;…"></textarea>
+      <div class="act-row">
+        <button class="btn btn-blue" onclick="generateFixtures()">⚡ Generate Fixtures</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: FIXTURES -->
+  <div class="card hidden" id="fixturesSection">
+    <div class="card-head" style="display:flex;align-items:center;">
+      <span class="step-n" id="step2n">2</span>
+      <div class="head-info" style="margin-left:14px;">
+        <h2>Fixtures</h2>
+        <p id="fixtureCount">—</p>
+      </div>
+    </div>
+    <div class="card-body" style="padding:24px;">
+      <div id="fixturesContainer"></div>
+    </div>
+  </div>
+
+  <!-- STEP 3: RESULTS -->
+  <div class="card hidden" id="resultsSection">
+    <div class="card-head" style="display:flex;align-items:center;">
+      <span class="step-n" id="step3n">3</span>
+      <div class="head-info" style="margin-left:14px;">
+        <h2>Enter Results</h2>
+        <p>Fill in match scores below</p>
+      </div>
+      <div class="head-right">
+        <span class="tag tg-blue hidden" id="matchesPlayed"></span>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <div class="info-box" style="margin:20px 24px 0;">
+        <span class="ico">ℹ️</span>
+        <span>Enter scores for each match. Results are auto-saved as you type. Click <strong>Calculate Standings</strong> when ready.</span>
+      </div>
+      <div style="overflow-x:auto;padding:0 0 24px;">
+        <table class="rtable" style="margin:20px 24px 0;width:calc(100% - 48px);">
+          <thead>
+            <tr>
+              <th style="width:32px">#</th>
+              <th class="tl">Home</th>
+              <th class="c" style="width:60px">HG</th>
+              <th class="c" style="width:20px"></th>
+              <th class="c" style="width:60px">AG</th>
+              <th class="tl">Away</th>
+              <th style="width:90px">Result</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+      <div class="act-row" style="padding:0 24px 24px;">
+        <button class="btn btn-blue" onclick="calculateStandings()">📊 Calculate Standings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: STANDINGS -->
+  <div class="card hidden" id="standingsSection">
+    <div class="card-head" style="display:flex;align-items:center;">
+      <span class="step-n" id="step4n">4</span>
+      <div class="head-info" style="margin-left:14px;">
+        <h2>Standings Preview</h2>
+        <p>Review before publishing</p>
+      </div>
+    </div>
+    <div class="card-body" style="padding:24px;">
+      <div id="standingsContainer"></div>
+      <div class="act-row">
+        <button class="btn btn-green" onclick="publishData()">🚀 Publish Live</button>
+      </div>
+      <div class="pub-box" id="publishBox">
+        <span>✅</span>
+        <p>Published! <a href="index.html">View public page →</a></p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="admin.js"></script>
+</body>
+</html>
