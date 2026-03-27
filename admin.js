@@ -8,7 +8,7 @@ const ADMIN_PASSWORD = 'adminjahim'; // Change this password if you want
 
 const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692';
 const GITHUB_USERNAME = 'Kris69445578';
-const GITHUB_TOKEN = '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'; // ←←← REPLACE WITH YOUR NEW TOKEN
+const GITHUB_TOKEN = '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'; // ←←← REPLACE WITH YOUR NEW TOKEN
 
 const GIST_API_URL = `https://api.github.com/gists/${GIST_ID}`;
 const GIST_RAW_URL = `https://gist.githubusercontent.com/${GITHUB_USERNAME}/${GIST_ID}/raw/tournament-data.json`;
