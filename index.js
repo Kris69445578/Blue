@@ -1,5 +1,6 @@
-/* ── ADMIN LOGIN (from index page) ───────────────────────── */
-const ADMIN_PASSWORD = 'adminjahim'; // Must match admin.js
+<script>
+// index.js - FULL FILE
+const ADMIN_PASSWORD = 'adminjahim';
 
 function openAdminPanel() {
   document.getElementById('adminPanel').classList.add('open');
@@ -24,16 +25,16 @@ function doLogin() {
   }
 }
 
-document.getElementById('loginPassword').addEventListener('keydown', function(e) {
+document.getElementById('loginPassword').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin();
   if (e.key === 'Escape') closeAdminPanel();
 });
 
-document.getElementById('adminPanel').addEventListener('click', function(e) {
-  if (e.target === this) closeAdminPanel();
+document.getElementById('adminPanel').addEventListener('click', e => {
+  if (e.target === document.getElementById('adminPanel')) closeAdminPanel();
 });
 
-/* ── TABS ─────────────────────────────────────────────────── */
+/* TABS */
 function switchTab(btn, panelId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -41,18 +42,28 @@ function switchTab(btn, panelId) {
   document.getElementById(panelId).classList.add('active');
 }
 
-/* ── HELPERS ─────────────────────────────────────────────── */
 function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
-function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function show(id) { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); }
 
-/* ── LOAD DATA ───────────────────────────────────────────── */
-function loadData() {
-  let data;
+/* LOAD DATA - Now prefers data.json */
+async function loadData() {
+  let data = null;
+
   try {
-    const raw = localStorage.getItem('efootball_tournament');
-    if (!raw) return;
-    data = JSON.parse(raw);
-  } catch (e) { return; }
+    const res = await fetch('data.json?' + Date.now()); // cache bust
+    if (res.ok) data = await res.json();
+  } catch (e) {
+    console.log('data.json not found, trying localStorage (for testing)');
+  }
+
+  if (!data) {
+    try {
+      const raw = localStorage.getItem('efootball_tournament');
+      if (raw) data = JSON.parse(raw);
+    } catch (e) {}
+  }
+
+  if (!data) return;
 
   show('liveTag');
 
@@ -66,9 +77,11 @@ function loadData() {
     document.getElementById('statPlayers').textContent = data.standings.length;
     document.getElementById('statMatches').textContent = data.played || 0;
     document.getElementById('statLeader').textContent = data.standings[0]?.name || '—';
+
     renderStandings(data.standings);
     renderPodium(data.standings);
     renderTicker(data.standings);
+
     const tt = document.getElementById('totalMatchTag');
     tt.classList.remove('hidden');
     tt.textContent = data.standings.length + ' players';
@@ -80,7 +93,7 @@ function loadData() {
   }
 }
 
-/* ── STANDINGS ────────────────────────────────────────────── */
+/* Render functions (same as before) */
 function renderStandings(standings) {
   let html = `<div class="tbl-wrap"><table class="stable">
     <thead><tr>
@@ -107,7 +120,6 @@ function renderStandings(standings) {
   document.getElementById('standingsContainer').innerHTML = html;
 }
 
-/* ── PODIUM ──────────────────────────────────────────────── */
 function renderPodium(standings) {
   if (standings.length < 1) return;
   const medals = ['🥇', '🥈', '🥉'];
@@ -127,7 +139,6 @@ function renderPodium(standings) {
   show('podiumSection');
 }
 
-/* ── TICKER ──────────────────────────────────────────────── */
 function renderTicker(standings) {
   let html = '';
   standings.forEach(s => {
@@ -143,14 +154,10 @@ function renderTicker(standings) {
   show('tickerWrap');
 }
 
-/* ── BUILD MATCHUP MAP ───────────────────────────────────── */
-// Returns a map: "PlayerA vs PlayerB" -> { playerA, playerB, round, legs: [{h,a}] }
-// Always keyed with the alphabetically-first name first so both legs map to same entry.
 function buildMatchups(fixtures) {
   const map = {};
   fixtures.forEach(ro => {
     ro.matches.forEach(m => {
-      // Canonical key: always sort names so leg1 and leg2 share the same key
       const [p1, p2] = [m.home, m.away].sort();
       const key = `${ro.round}__${p1}__${p2}`;
       if (!map[key]) map[key] = { p1, p2, round: ro.round, legs: [] };
@@ -164,11 +171,8 @@ function buildMatchups(fixtures) {
   return map;
 }
 
-/* ── FIXTURES ────────────────────────────────────────────── */
 function renderFixtures(fixtures) {
   const map = buildMatchups(fixtures);
-
-  // Group unique matchups by round
   const rounds = {};
   Object.values(map).forEach(mu => {
     if (!rounds[mu.round]) rounds[mu.round] = [];
@@ -176,7 +180,7 @@ function renderFixtures(fixtures) {
   });
 
   let html = '';
-  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
+  Object.keys(rounds).sort((a,b)=>a-b).forEach(round => {
     html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
     rounds[round].forEach(mu => {
       html += `<div class="fx-card">
@@ -192,14 +196,11 @@ function renderFixtures(fixtures) {
   if (html) document.getElementById('fixturesContainer').innerHTML = html;
 }
 
-/* ── RESULTS ─────────────────────────────────────────────── */
 function renderResults(fixtures) {
   const map = buildMatchups(fixtures);
-
-  // Group by round, only include matchups where at least one leg is played
   const rounds = {};
   Object.values(map).forEach(mu => {
-    const hasScore = mu.legs.some(l => l.homeScore !== '' && l.homeScore !== undefined && l.awayScore !== '' && l.awayScore !== undefined);
+    const hasScore = mu.legs.some(l => l.homeScore !== '' && l.awayScore !== '');
     if (!hasScore) return;
     if (!rounds[mu.round]) rounds[mu.round] = [];
     rounds[mu.round].push(mu);
@@ -208,36 +209,29 @@ function renderResults(fixtures) {
   if (!Object.keys(rounds).length) return;
 
   let html = '';
-  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
+  Object.keys(rounds).sort((a,b)=>a-b).forEach(round => {
     html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
     rounds[round].forEach(mu => {
-      // For each leg, find the goals scored by p1 and p2
-      // p1/p2 may be home in one leg and away in the other
       let p1Total = 0, p2Total = 0, legsPlayed = 0;
       const legDetails = [];
 
       mu.legs.forEach(l => {
         const hs = l.homeScore, as = l.awayScore;
-        if (hs === '' || hs === undefined || as === '' || as === undefined) return;
+        if (hs === '' || as === '') return;
         const h = parseInt(hs), a = parseInt(as);
         legsPlayed++;
-        // Determine which score belongs to p1 vs p2
         if (l.home === mu.p1) { p1Total += h; p2Total += a; }
-        else                  { p1Total += a; p2Total += h; }
+        else { p1Total += a; p2Total += h; }
         legDetails.push({ leg: l.leg, home: l.home, away: l.away, h, a });
       });
 
       const bothLegs = legsPlayed === 2;
-      const resultCls = p1Total > p2Total ? 'played' : p2Total > p1Total ? 'played away-win' : 'played draw';
-      const cardCls = bothLegs ? resultCls : 'played';
-
-      // Leg breakdown tooltip text
+      const cardCls = bothLegs ? (p1Total > p2Total ? 'played' : p2Total > p1Total ? 'played away-win' : 'played draw') : 'played';
       const breakdown = legDetails.map(d => `Leg ${d.leg}: ${d.home} ${d.h}–${d.a} ${d.away}`).join(' · ');
 
       html += `<div class="fx-card ${cardCls}" title="${breakdown}">`;
 
       if (bothLegs) {
-        // Show aggregate
         html += `<span class="fx-ltag agg">Aggregate</span>
           <div class="fx-match">
             <span class="fx-p r" style="${p1Total > p2Total ? 'color:var(--green)' : p2Total > p1Total ? 'color:var(--red)' : ''}">${mu.p1}</span>
@@ -246,7 +240,6 @@ function renderResults(fixtures) {
           </div>
           <div class="fx-legs">${legDetails.map(d => `<span>Leg ${d.leg}: ${d.home === mu.p1 ? d.h+'-'+d.a : d.a+'-'+d.h}</span>`).join('')}</div>`;
       } else {
-        // Only one leg played so far
         const d = legDetails[0];
         const p1g = d.home === mu.p1 ? d.h : d.a;
         const p2g = d.home === mu.p1 ? d.a : d.h;
@@ -257,7 +250,6 @@ function renderResults(fixtures) {
             <span class="fx-p" style="${p2g > p1g ? 'color:var(--green)' : p1g > p2g ? 'color:var(--red)' : ''}">${mu.p2}</span>
           </div>`;
       }
-
       html += `</div>`;
     });
     html += `</div>`;
@@ -266,6 +258,7 @@ function renderResults(fixtures) {
   document.getElementById('resultsContainer').innerHTML = html;
 }
 
-/* ── INIT & POLL ─────────────────────────────────────────── */
+/* INIT */
 loadData();
-setInterval(loadData, 15000);
+setInterval(loadData, 15000); // refresh every 15s
+</script>
