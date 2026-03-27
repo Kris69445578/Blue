@@ -1,43 +1,5 @@
 /* ── AUTH ──────────────────────────────────────────────────── */
-const ADMIN_PASSWORD = 'adminjahim'; // Change this password if you want
-
-// ==================== IMPORTANT: UPDATE THESE ====================
-// 1. Create a new Classic Personal Access Token at https://github.com/settings/tokens
-//    → Select only the "gist" scope
-// 2. Paste the new token below (it starts with ghp_)
-
-const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692';
-const GITHUB_USERNAME = 'Kris69445578';
-const GITHUB_TOKEN = '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'; // ←←← REPLACE WITH YOUR NEW TOKEN
-
-const GIST_API_URL = `https://api.github.com/gists/${GIST_ID}`;
-const GIST_RAW_URL = `https://gist.githubusercontent.com/${GITHUB_USERNAME}/${GIST_ID}/raw/tournament-data.json`;
-
-/* ── LOGIN ─────────────────────────────────────────────────── */
-function checkLogin() {
-  if (sessionStorage.getItem('admin_auth') === '1') {
-    document.getElementById('loginOverlay').style.display = 'none';
-  }
-}
-
-function doLogin() {
-  const pw = document.getElementById('loginPassword').value;
-  if (pw === ADMIN_PASSWORD) {
-    sessionStorage.setItem('admin_auth', '1');
-    document.getElementById('loginOverlay').style.display = 'none';
-    document.getElementById('loginError').classList.remove('show');
-  } else {
-    document.getElementById('loginError').classList.add('show');
-    document.getElementById('loginPassword').value = '';
-    document.getElementById('loginPassword').focus();
-  }
-}
-
-document.getElementById('loginPassword').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') doLogin();
-});
-
-checkLogin();
+const ADMIN_PASSWORD = 'adminjahim'; // Change this if you want
 
 /* ── STATE ────────────────────────────────────────────────── */
 let players = [], fixtures = [];
@@ -47,71 +9,8 @@ function show(id) {
   if (el) el.classList.remove('hidden');
 }
 
-/* ── PERSISTENCE ──────────────────────────────────────────── */
+/* ── LOCAL DRAFT ──────────────────────────────────────────── */
 const DRAFT_KEY = 'efootball_admin_draft';
-
-// Improved Save to GitHub Gist
-async function saveToCloud(data) {
-  try {
-    console.log('🔄 Publishing to GitHub Gist...');
-    
-    const updateResponse = await fetch(GIST_API_URL, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `token ${GITHUB_TOKEN}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/vnd.github.v3+json'
-      },
-      body: JSON.stringify({
-        files: {
-          'tournament-data.json': {
-            content: JSON.stringify(data, null, 2)
-          }
-        }
-      })
-    });
-
-    if (updateResponse.ok) {
-      console.log('✅ Successfully published to Gist');
-      return true;
-    } else {
-      const errorText = await updateResponse.text();
-      console.error('❌ Gist publish failed:', updateResponse.status, errorText);
-      
-      let msg = `Publish failed! Error ${updateResponse.status}\n\n`;
-      if (updateResponse.status === 401 || updateResponse.status === 403) {
-        msg += "Invalid or expired GitHub token.\nMake sure you created a Classic token with 'gist' scope only.";
-      } else if (updateResponse.status === 404) {
-        msg += "Gist ID not found. Check that GIST_ID is correct.";
-      } else {
-        msg += errorText;
-      }
-      
-      alert(msg);
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Network error publishing to Gist:', error);
-    alert('Could not connect to GitHub. Check your internet connection and token.');
-    return false;
-  }
-}
-
-// Load from GitHub Gist (public, no token needed)
-async function loadFromCloud() {
-  try {
-    const response = await fetch(GIST_RAW_URL + '?t=' + Date.now()); // cache busting
-    if (response.ok) {
-      const data = await response.json();
-      console.log('Loaded data from Gist');
-      return data;
-    }
-    return null;
-  } catch (error) {
-    console.error('Error loading from Gist:', error);
-    return null;
-  }
-}
 
 function saveDraft() {
   fixtures.forEach(ro => {
@@ -161,9 +60,7 @@ function loadDraft() {
 
       showDraftBanner();
     }
-  } catch (e) {
-    console.warn('Could not restore draft:', e);
-  }
+  } catch (e) { console.warn('Draft load failed'); }
 }
 
 function showDraftBanner() {
@@ -172,18 +69,9 @@ function showDraftBanner() {
 }
 
 function clearDraft() {
-  if (!confirm('Clear all saved data and start fresh?')) return;
+  if (!confirm('Clear all data and start fresh?')) return;
   localStorage.removeItem(DRAFT_KEY);
-  players = [];
-  fixtures = [];
-  document.getElementById('playerInput').value = '';
-  document.getElementById('playerTag').classList.add('hidden');
-  document.getElementById('fixturesSection').classList.add('hidden');
-  document.getElementById('resultsSection').classList.add('hidden');
-  document.getElementById('standingsSection').classList.add('hidden');
-  document.getElementById('draftBanner').classList.add('hidden');
-  document.getElementById('publishBox').classList.remove('show');
-  window._data = null;
+  location.reload();
 }
 
 /* ── GENERATE FIXTURES ───────────────────────────────────── */
@@ -199,7 +87,6 @@ function generateFixtures() {
   tag.classList.remove('hidden');
   tag.textContent = '✓ ' + players.length + ' players';
 
-  // Generate round-robin fixtures (home & away)
   fixtures = [];
   let list = [...players];
   if (list.length % 2 !== 0) list.push('BYE');
@@ -232,9 +119,9 @@ function generateFixtures() {
   document.getElementById('fixturesSection').scrollIntoView({ behavior: 'smooth' });
 }
 
-/* ── RENDER FUNCTIONS ─────────────────────────────────────── */
+/* ── RENDER FIXTURES ─────────────────────────────────────── */
 function renderFixtures() {
-  let total = 0, html = '', lastLeg = null;
+  let html = '', lastLeg = null;
   fixtures.forEach(ro => {
     if (ro.leg !== lastLeg) {
       lastLeg = ro.leg;
@@ -245,11 +132,9 @@ function renderFixtures() {
     }
     html += `<div class="rl">Round ${ro.round}</div><div class="fx-grid">`;
     ro.matches.forEach(m => {
-      total++;
       const tc = m.leg === 1 ? 'home' : 'away';
-      const tt = m.leg === 1 ? 'Home leg' : 'Away leg';
       html += `<div class="fx-card">
-        <span class="fx-ltag ${tc}">${tt}</span>
+        <span class="fx-ltag ${tc}">${m.leg === 1 ? 'Home leg' : 'Away leg'}</span>
         <div class="fx-match">
           <span class="fx-p r">${escapeHtml(m.home)}</span>
           <span class="fx-vs">vs</span>
@@ -260,9 +145,10 @@ function renderFixtures() {
     html += `</div>`;
   });
   document.getElementById('fixturesContainer').innerHTML = html;
-  document.getElementById('fixtureCount').textContent = total + ' matches · 2 legs';
+  document.getElementById('fixtureCount').textContent = fixtures.reduce((a,r) => a + r.matches.length, 0) + ' matches';
 }
 
+/* ── RESULTS TABLE ───────────────────────────────────────── */
 function renderResultsTable() {
   let html = '', idx = 1, lastLeg = null;
   fixtures.forEach(ro => {
@@ -275,13 +161,12 @@ function renderResultsTable() {
     }
     ro.matches.forEach(m => {
       const bc = m.leg === 1 ? 'h' : 'a';
-      const bt = m.leg === 1 ? 'H' : 'A';
       html += `<tr>
         <td style="color:var(--dim);font-size:.78rem">${idx++}</td>
-        <td class="pname">${escapeHtml(m.home)} <span class="lbadge ${bc}">${bt}</span></td>
-        <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="hs_${m.id}" placeholder="–" oninput="onScoreInput(${m.id})" onchange="onScoreInput(${m.id})"></td>
+        <td class="pname">${escapeHtml(m.home)} <span class="lbadge ${bc}">${m.leg===1?'H':'A'}</span></td>
+        <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="hs_${m.id}" placeholder="–" oninput="onScoreInput(${m.id})"></td>
         <td style="text-align:center"><span class="sc">:</span></td>
-        <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="as_${m.id}" placeholder="–" oninput="onScoreInput(${m.id})" onchange="onScoreInput(${m.id})"></td>
+        <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="as_${m.id}" placeholder="–" oninput="onScoreInput(${m.id})"></td>
         <td class="pname">${escapeHtml(m.away)}</td>
         <td id="st_${m.id}" style="font-size:.8rem;color:var(--dim)">—</td>
       </tr>`;
@@ -294,22 +179,12 @@ let saveTimer = null;
 function onScoreInput(id) {
   mark(id);
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saveDraft();
-    flashSaveIndicator();
-  }, 800);
-}
-
-function flashSaveIndicator() {
-  const el = document.getElementById('saveIndicator');
-  if (!el) return;
-  el.classList.add('visible');
-  setTimeout(() => el.classList.remove('visible'), 2000);
+  saveTimer = setTimeout(saveDraft, 800);
 }
 
 function mark(id) {
-  const hs = document.getElementById('hs_' + id).value;
-  const as = document.getElementById('as_' + id).value;
+  const hs = document.getElementById('hs_' + id)?.value || '';
+  const as = document.getElementById('as_' + id)?.value || '';
   const el = document.getElementById('st_' + id);
   if (hs !== '' && as !== '') {
     const h = parseInt(hs), a = parseInt(as);
@@ -324,25 +199,25 @@ function mark(id) {
 /* ── CALCULATE STANDINGS ─────────────────────────────────── */
 function calculateStandings() {
   const stats = {};
-  players.forEach(p => { 
-    stats[p] = { P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0, form: [] }; 
+  players.forEach(p => {
+    stats[p] = { P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0, form: [] };
   });
-  
+
   let played = 0;
   fixtures.forEach(ro => {
     ro.matches.forEach(m => {
       const he = document.getElementById('hs_' + m.id);
       const ae = document.getElementById('as_' + m.id);
       if (!he || !ae || he.value === '' || ae.value === '') return;
-      
+
       const h = parseInt(he.value), a = parseInt(ae.value);
       played++;
       const hm = stats[m.home], am = stats[m.away];
-      
-      hm.P++; am.P++; 
-      hm.GF += h; hm.GA += a; 
+
+      hm.P++; am.P++;
+      hm.GF += h; hm.GA += a;
       am.GF += a; am.GA += h;
-      hm.GD = hm.GF - hm.GA; 
+      hm.GD = hm.GF - hm.GA;
       am.GD = am.GF - am.GA;
 
       if (h > a) {
@@ -358,31 +233,25 @@ function calculateStandings() {
     });
   });
 
-  const sorted = Object.entries(stats).sort(([, a], [, b]) => {
-    if (b.Pts !== a.Pts) return b.Pts - a.Pts;
-    if (b.GD !== a.GD) return b.GD - a.GD;
-    return b.GF - a.GF;
-  });
+  const sorted = Object.entries(stats).sort(([,a], [,b]) => 
+    b.Pts - a.Pts || b.GD - a.GD || b.GF - a.GF
+  );
 
   renderStandings(sorted);
 
-  window._data = { 
-    players, 
+  window._data = {
+    players,
     fixtures: fixtures.map(ro => ({
-      ...ro, 
+      ...ro,
       matches: ro.matches.map(m => {
         const he = document.getElementById('hs_' + m.id);
         const ae = document.getElementById('as_' + m.id);
-        return { 
-          ...m, 
-          homeScore: he ? he.value : '', 
-          awayScore: ae ? ae.value : '' 
-        };
+        return { ...m, homeScore: he ? he.value : '', awayScore: ae ? ae.value : '' };
       })
-    })), 
-    standings: sorted.map(([name, s], i) => ({ pos: i + 1, name, ...s })), 
-    played, 
-    updated: new Date().toISOString() 
+    })),
+    standings: sorted.map(([name, s], i) => ({ pos: i + 1, name, ...s })),
+    played,
+    updated: new Date().toISOString()
   };
 
   const mp = document.getElementById('matchesPlayed');
@@ -409,7 +278,7 @@ function renderStandings(sorted) {
   sorted.forEach(([name, s], i) => {
     const pos = i + 1;
     const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos;
-    const gd = s.GD > 0 ? `<span class="gdp">+${s.GD}</span>` : s.GD < 0 ? `<span class="gdn">${s.GD}</span>` : '0';
+    const gd = s.GD > 0 ? `+${s.GD}` : s.GD;
     const form = s.form.slice(-5).map(fi).join('');
     html += `<tr>
       <td>${medal}</td>
@@ -424,39 +293,25 @@ function renderStandings(sorted) {
   document.getElementById('standingsContainer').innerHTML = html;
 }
 
-/* ── PUBLISH ────────────────────────────────────────────────── */
-async function publishData() {
-  if (!window._data) { 
-    alert('Please click "Calculate Standings" first.'); 
-    return; 
+/* ── PUBLISH = DOWNLOAD JSON ─────────────────────────────── */
+function publishData() {
+  if (!window._data) {
+    alert('Please click "Calculate Standings" first!');
+    return;
   }
 
-  // Update with latest scores
-  window._data.fixtures = fixtures.map(ro => ({
-    ...ro, 
-    matches: ro.matches.map(m => {
-      const he = document.getElementById('hs_' + m.id);
-      const ae = document.getElementById('as_' + m.id);
-      return { ...m, homeScore: he ? he.value : '', awayScore: ae ? ae.value : '' };
-    })
-  }));
-
-  localStorage.setItem('efootball_tournament', JSON.stringify(window._data));
-  saveDraft();
+  const dataStr = JSON.stringify(window._data, null, 2);
+  const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+  
+  const link = document.createElement('a');
+  link.setAttribute('href', dataUri);
+  link.setAttribute('download', 'tournament-data.json');
+  link.click();
 
   const pb = document.getElementById('publishBox');
-  pb.innerHTML = '<span>⏳</span><p>Publishing to GitHub Gist...</p>';
+  pb.innerHTML = `<span>✅</span><p><strong>tournament-data.json</strong> downloaded!<br>Send this file to your friends.<br>They can upload it on the main page.</p>`;
   pb.classList.add('show');
-
-  const success = await saveToCloud(window._data);
-
-  if (success) {
-    pb.innerHTML = `<span>✅</span><p>Published successfully!<br>Players can view at <a href="index.html" target="_blank">index.html</a></p>`;
-    setTimeout(() => pb.classList.remove('show'), 6000);
-  } else {
-    pb.innerHTML = `<span>⚠️</span><p>Publish failed. Check console (F12) for details.</p>`;
-    setTimeout(() => pb.classList.remove('show'), 6000);
-  }
+  setTimeout(() => pb.classList.remove('show'), 8000);
 }
 
 function escapeHtml(text) {
@@ -469,5 +324,5 @@ function escapeHtml(text) {
 /* ── INIT ─────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', function() {
   loadDraft();
-  console.log('Admin panel initialized. Remember to update GITHUB_TOKEN!');
+  console.log('✅ Admin panel ready - Use Download JSON to share results');
 });
