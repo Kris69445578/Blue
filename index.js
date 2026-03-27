@@ -1,5 +1,6 @@
-/* ── ADMIN LOGIN (from index page) ───────────────────────── */
-const ADMIN_PASSWORD = 'adminjahim'; // Must match admin.js
+<DOCUMENT filename="index.js">
+/* ── ADMIN LOGIN ───────────────────────────────────────────── */
+const ADMIN_PASSWORD = 'adminjahim';
 
 function openAdminPanel() {
   document.getElementById('adminPanel').classList.add('open');
@@ -45,51 +46,66 @@ function switchTab(btn, panelId) {
 function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
 
-/* ── LOAD DATA FROM JSON FILE ────────────────────────────── */
-function loadData() {
-  fetch('data.php')
-    .then(response => response.json())
-    .then(data => {
-      if (!data) return;
+/* ── LOAD DATA (Fixed for GitHub Pages) ───────────────────── */
+async function loadData() {
+  let data = null;
 
-      show('liveTag');
+  try {
+    // Primary: Load from tournament-data.json (public file)
+    const res = await fetch('tournament-data.json?t=' + Date.now());
+    if (res.ok) {
+      data = await res.json();
+    }
+  } catch (e) {
+    console.log("Could not load JSON file, trying localStorage...");
+  }
 
-      if (data.updated) {
-        const d = new Date(data.updated);
-        document.getElementById('lastUpdated').textContent = 'Last updated: ' + d.toLocaleString();
-      }
+  // Fallback to localStorage (only for the person who published)
+  if (!data) {
+    try {
+      const raw = localStorage.getItem('efootball_tournament');
+      if (raw) data = JSON.parse(raw);
+    } catch (e) {}
+  }
 
-      if (data.standings && data.standings.length) {
-        document.getElementById('heroStats').style.display = 'flex';
-        document.getElementById('statPlayers').textContent = data.standings.length;
-        document.getElementById('statMatches').textContent = data.played || 0;
-        document.getElementById('statLeader').textContent = data.standings[0]?.name || '—';
-        renderStandings(data.standings);
-        renderPodium(data.standings);
-        renderTicker(data.standings);
-        const tt = document.getElementById('totalMatchTag');
-        tt.classList.remove('hidden');
-        tt.textContent = data.standings.length + ' players';
-      }
+  if (!data) return;
 
-      if (data.fixtures && data.fixtures.length) {
-        renderFixtures(data.fixtures);
-        renderResults(data.fixtures);
-      }
-    })
-    .catch(error => {
-      console.error('Error loading data:', error);
-    });
+  show('liveTag');
+
+  if (data.updated) {
+    const d = new Date(data.updated);
+    document.getElementById('lastUpdated').textContent = 'Last updated: ' + d.toLocaleString();
+  }
+
+  if (data.standings && data.standings.length) {
+    document.getElementById('heroStats').style.display = 'flex';
+    document.getElementById('statPlayers').textContent = data.standings.length;
+    document.getElementById('statMatches').textContent = data.played || 0;
+    document.getElementById('statLeader').textContent = data.standings[0]?.name || '—';
+
+    renderStandings(data.standings);
+    renderPodium(data.standings);
+    renderTicker(data.standings);
+
+    const tt = document.getElementById('totalMatchTag');
+    tt.classList.remove('hidden');
+    tt.textContent = data.standings.length + ' players';
+  }
+
+  if (data.fixtures && data.fixtures.length) {
+    renderFixtures(data.fixtures);
+    renderResults(data.fixtures);
+  }
 }
 
 /* ── STANDINGS ────────────────────────────────────────────── */
 function renderStandings(standings) {
   let html = `<div class="tbl-wrap"><table class="stable">
-    <thead>
+    <thead><tr>
       <th style="width:36px">Pos</th><th class="tl">Player</th>
       <th>P</th><th>W</th><th>D</th><th>L</th>
       <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Form</th>
-    </thead><tbody>`;
+    </tr></thead><tbody>`;
   standings.forEach((s, i) => {
     const pos = i + 1;
     const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos;
@@ -145,7 +161,7 @@ function renderTicker(standings) {
   show('tickerWrap');
 }
 
-/* ── BUILD MATCHUP MAP ───────────────────────────────────── */
+/* ── BUILD MATCHUPS ──────────────────────────────────────── */
 function buildMatchups(fixtures) {
   const map = {};
   fixtures.forEach(ro => {
@@ -194,7 +210,7 @@ function renderResults(fixtures) {
   const map = buildMatchups(fixtures);
   const rounds = {};
   Object.values(map).forEach(mu => {
-    const hasScore = mu.legs.some(l => l.homeScore !== '' && l.homeScore !== undefined && l.awayScore !== '' && l.awayScore !== undefined);
+    const hasScore = mu.legs.some(l => l.homeScore && l.awayScore);
     if (!hasScore) return;
     if (!rounds[mu.round]) rounds[mu.round] = [];
     rounds[mu.round].push(mu);
@@ -211,17 +227,18 @@ function renderResults(fixtures) {
 
       mu.legs.forEach(l => {
         const hs = l.homeScore, as = l.awayScore;
-        if (hs === '' || hs === undefined || as === '' || as === undefined) return;
+        if (!hs || !as) return;
         const h = parseInt(hs), a = parseInt(as);
         legsPlayed++;
         if (l.home === mu.p1) { p1Total += h; p2Total += a; }
-        else                  { p1Total += a; p2Total += h; }
+        else { p1Total += a; p2Total += h; }
         legDetails.push({ leg: l.leg, home: l.home, away: l.away, h, a });
       });
 
       const bothLegs = legsPlayed === 2;
       const resultCls = p1Total > p2Total ? 'played' : p2Total > p1Total ? 'played away-win' : 'played draw';
       const cardCls = bothLegs ? resultCls : 'played';
+
       const breakdown = legDetails.map(d => `Leg ${d.leg}: ${d.home} ${d.h}–${d.a} ${d.away}`).join(' · ');
 
       html += `<div class="fx-card ${cardCls}" title="${breakdown}">`;
@@ -245,7 +262,6 @@ function renderResults(fixtures) {
             <span class="fx-p" style="${p2g > p1g ? 'color:var(--green)' : p1g > p2g ? 'color:var(--red)' : ''}">${mu.p2}</span>
           </div>`;
       }
-
       html += `</div>`;
     });
     html += `</div>`;
@@ -254,6 +270,7 @@ function renderResults(fixtures) {
   document.getElementById('resultsContainer').innerHTML = html;
 }
 
-/* ── INIT & POLL ─────────────────────────────────────────── */
+/* ── INIT & AUTO REFRESH ─────────────────────────────────── */
 loadData();
-setInterval(loadData, 15000);
+setInterval(loadData, 15000);   // Refresh every 15 seconds
+</DOCUMENT>
