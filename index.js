@@ -2,8 +2,9 @@
 const ADMIN_PASSWORD = 'adminjahim'; // Must match admin.js
 
 // GitHub Gist Configuration - REPLACE WITH YOUR ACTUAL VALUES
-const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692'; // e.g., 'abc123def456'
-const GIST_RAW_URL = `https://gist.githubusercontent.com/raw/${GIST_ID}/tournament-data.json`;
+const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692';
+const GITHUB_USERNAME = 'Kris69445578';
+const GIST_RAW_URL = `https://gist.githubusercontent.com/${GITHUB_USERNAME}/${GIST_ID}/raw/tournament-data.json`;
 
 // Load from GitHub Gist (read-only, no token needed for public gists)
 async function loadFromCloud() {
@@ -21,14 +22,21 @@ async function loadFromCloud() {
 }
 
 function openAdminPanel() {
-  document.getElementById('adminPanel').classList.add('open');
-  setTimeout(() => document.getElementById('loginPassword').focus(), 50);
+  const panel = document.getElementById('adminPanel');
+  if (panel) panel.classList.add('open');
+  setTimeout(() => {
+    const pwdInput = document.getElementById('loginPassword');
+    if (pwdInput) pwdInput.focus();
+  }, 50);
 }
 
 function closeAdminPanel() {
-  document.getElementById('adminPanel').classList.remove('open');
-  document.getElementById('loginError').classList.remove('show');
-  document.getElementById('loginPassword').value = '';
+  const panel = document.getElementById('adminPanel');
+  if (panel) panel.classList.remove('open');
+  const errorEl = document.getElementById('loginError');
+  if (errorEl) errorEl.classList.remove('show');
+  const pwdInput = document.getElementById('loginPassword');
+  if (pwdInput) pwdInput.value = '';
 }
 
 function doLogin() {
@@ -37,32 +45,58 @@ function doLogin() {
     sessionStorage.setItem('admin_auth', '1');
     window.location.href = 'admin.htm';
   } else {
-    document.getElementById('loginError').classList.add('show');
-    document.getElementById('loginPassword').value = '';
-    document.getElementById('loginPassword').focus();
+    const errorEl = document.getElementById('loginError');
+    if (errorEl) errorEl.classList.add('show');
+    const pwdInput = document.getElementById('loginPassword');
+    if (pwdInput) {
+      pwdInput.value = '';
+      pwdInput.focus();
+    }
   }
 }
 
-document.getElementById('loginPassword').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') doLogin();
-  if (e.key === 'Escape') closeAdminPanel();
-});
-
-document.getElementById('adminPanel').addEventListener('click', function(e) {
-  if (e.target === this) closeAdminPanel();
+// Add event listeners when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  const pwdInput = document.getElementById('loginPassword');
+  if (pwdInput) {
+    pwdInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doLogin();
+      if (e.key === 'Escape') closeAdminPanel();
+    });
+  }
+  
+  const adminPanel = document.getElementById('adminPanel');
+  if (adminPanel) {
+    adminPanel.addEventListener('click', function(e) {
+      if (e.target === this) closeAdminPanel();
+    });
+  }
 });
 
 /* ── TABS ─────────────────────────────────────────────────── */
 function switchTab(btn, panelId) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  // Remove active class from all tabs
+  const allTabs = document.querySelectorAll('.tab');
+  allTabs.forEach(tab => tab.classList.remove('active'));
+  
+  // Remove active class from all panels
+  const allPanels = document.querySelectorAll('.tab-panel');
+  allPanels.forEach(panel => panel.classList.remove('active'));
+  
+  // Add active class to clicked tab
   btn.classList.add('active');
-  document.getElementById(panelId).classList.add('active');
+  
+  // Add active class to target panel
+  const targetPanel = document.getElementById(panelId);
+  if (targetPanel) targetPanel.classList.add('active');
 }
 
 /* ── HELPERS ─────────────────────────────────────────────── */
 function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
-function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function show(id) { 
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('hidden');
+}
 
 /* ── LOAD DATA ───────────────────────────────────────────── */
 async function loadData() {
@@ -92,20 +126,32 @@ async function loadData() {
 
   if (data.updated) {
     const d = new Date(data.updated);
-    document.getElementById('lastUpdated').textContent = 'Last updated: ' + d.toLocaleString();
+    const updatedEl = document.getElementById('lastUpdated');
+    if (updatedEl) updatedEl.textContent = 'Last updated: ' + d.toLocaleString();
   }
 
   if (data.standings && data.standings.length) {
-    document.getElementById('heroStats').style.display = 'flex';
-    document.getElementById('statPlayers').textContent = data.standings.length;
-    document.getElementById('statMatches').textContent = data.played || 0;
-    document.getElementById('statLeader').textContent = data.standings[0]?.name || '—';
+    const heroStats = document.getElementById('heroStats');
+    if (heroStats) heroStats.style.display = 'flex';
+    
+    const statPlayers = document.getElementById('statPlayers');
+    if (statPlayers) statPlayers.textContent = data.standings.length;
+    
+    const statMatches = document.getElementById('statMatches');
+    if (statMatches) statMatches.textContent = data.played || 0;
+    
+    const statLeader = document.getElementById('statLeader');
+    if (statLeader) statLeader.textContent = data.standings[0]?.name || '—';
+    
     renderStandings(data.standings);
     renderPodium(data.standings);
     renderTicker(data.standings);
-    const tt = document.getElementById('totalMatchTag');
-    tt.classList.remove('hidden');
-    tt.textContent = data.standings.length + ' players';
+    
+    const totalMatchTag = document.getElementById('totalMatchTag');
+    if (totalMatchTag) {
+      totalMatchTag.classList.remove('hidden');
+      totalMatchTag.textContent = data.standings.length + ' players';
+    }
   }
 
   if (data.fixtures && data.fixtures.length) {
@@ -117,11 +163,23 @@ async function loadData() {
 /* ── STANDINGS ────────────────────────────────────────────── */
 function renderStandings(standings) {
   let html = `<div class="tbl-wrap"><table class="stable">
-    <thead><tr>
-      <th style="width:36px">Pos</th><th class="tl">Player</th>
-      <th>P</th><th>W</th><th>D</th><th>L</th>
-      <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Form</th>
-    </tr></thead><tbody>`;
+    <thead>
+      <tr>
+        <th style="width:36px">Pos</th>
+        <th class="tl">Player</th>
+        <th>P</th>
+        <th>W</th>
+        <th>D</th>
+        <th>L</th>
+        <th>GF</th>
+        <th>GA</th>
+        <th>GD</th>
+        <th>Pts</th>
+        <th>Form</th>
+      </tr>
+    </thead>
+    <tbody>`;
+  
   standings.forEach((s, i) => {
     const pos = i + 1;
     const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos;
@@ -130,15 +188,22 @@ function renderStandings(standings) {
     const form = (s.form || []).slice(-5).map(fi).join('');
     html += `<tr class="${rc}">
       <td>${medal}</td>
-      <td class="tl pname">${s.name}</td>
-      <td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td>
-      <td>${s.GF}</td><td>${s.GA}</td><td>${gd}</td>
+      <td class="tl pname">${escapeHtml(s.name)}</td>
+      <td>${s.P}</td>
+      <td>${s.W}</td>
+      <td>${s.D}</td>
+      <td>${s.L}</td>
+      <td>${s.GF}</td>
+      <td>${s.GA}</td>
+      <td>${gd}</td>
       <td class="pts">${s.Pts}</td>
       <td class="form-c">${form}</td>
     </tr>`;
   });
+  
   html += '</tbody></table></div>';
-  document.getElementById('standingsContainer').innerHTML = html;
+  const standingsContainer = document.getElementById('standingsContainer');
+  if (standingsContainer) standingsContainer.innerHTML = html;
 }
 
 /* ── PODIUM ──────────────────────────────────────────────── */
@@ -152,12 +217,13 @@ function renderPodium(standings) {
     if (!s) return;
     html += `<div class="podium-card ${ranks[i]}">
       <span class="pod-medal">${medals[i === 1 ? 0 : i === 0 ? 1 : 2]}</span>
-      <div class="pod-name">${s.name}</div>
+      <div class="pod-name">${escapeHtml(s.name)}</div>
       <div class="pod-pts">${s.Pts}</div>
       <div class="pod-sub">${s.W}W ${s.D}D ${s.L}L</div>
     </div>`;
   });
-  document.getElementById('podiumContainer').innerHTML = html;
+  const podiumContainer = document.getElementById('podiumContainer');
+  if (podiumContainer) podiumContainer.innerHTML = html;
   show('podiumSection');
 }
 
@@ -166,15 +232,17 @@ function renderTicker(standings) {
   let html = '';
   standings.forEach(s => {
     html += `<span class="tick-item">
-      <span class="hi">${s.name}</span>
+      <span class="hi">${escapeHtml(s.name)}</span>
       <span class="sep">·</span>${s.Pts} pts
       <span class="sep">·</span>${s.W}W ${s.D}D ${s.L}L
       <span class="sep">///</span>
     </span>`;
   });
-  const ti = document.getElementById('tickerInner');
-  ti.innerHTML = html + html;
-  show('tickerWrap');
+  const tickerInner = document.getElementById('tickerInner');
+  if (tickerInner) {
+    tickerInner.innerHTML = html + html;
+    show('tickerWrap');
+  }
 }
 
 /* ── BUILD MATCHUP MAP ───────────────────────────────────── */
@@ -210,15 +278,18 @@ function renderFixtures(fixtures) {
     rounds[round].forEach(mu => {
       html += `<div class="fx-card">
         <div class="fx-match">
-          <span class="fx-p r">${mu.p1}</span>
+          <span class="fx-p r">${escapeHtml(mu.p1)}</span>
           <span class="fx-vs">vs</span>
-          <span class="fx-p">${mu.p2}</span>
+          <span class="fx-p">${escapeHtml(mu.p2)}</span>
         </div>
       </div>`;
     });
     html += `</div>`;
   });
-  if (html) document.getElementById('fixturesContainer').innerHTML = html;
+  if (html) {
+    const fixturesContainer = document.getElementById('fixturesContainer');
+    if (fixturesContainer) fixturesContainer.innerHTML = html;
+  }
 }
 
 /* ── RESULTS ─────────────────────────────────────────────── */
@@ -261,9 +332,9 @@ function renderResults(fixtures) {
       if (bothLegs) {
         html += `<span class="fx-ltag agg">Aggregate</span>
           <div class="fx-match">
-            <span class="fx-p r" style="${p1Total > p2Total ? 'color:var(--green)' : p2Total > p1Total ? 'color:var(--red)' : ''}">${mu.p1}</span>
+            <span class="fx-p r" style="${p1Total > p2Total ? 'color:var(--green)' : p2Total > p1Total ? 'color:var(--red)' : ''}">${escapeHtml(mu.p1)}</span>
             <span class="fx-score">${p1Total} – ${p2Total}</span>
-            <span class="fx-p" style="${p2Total > p1Total ? 'color:var(--green)' : p1Total > p2Total ? 'color:var(--red)' : ''}">${mu.p2}</span>
+            <span class="fx-p" style="${p2Total > p1Total ? 'color:var(--green)' : p1Total > p2Total ? 'color:var(--red)' : ''}">${escapeHtml(mu.p2)}</span>
           </div>
           <div class="fx-legs">${legDetails.map(d => `<span>Leg ${d.leg}: ${d.home === mu.p1 ? d.h+'-'+d.a : d.a+'-'+d.h}</span>`).join('')}</div>`;
       } else {
@@ -272,9 +343,9 @@ function renderResults(fixtures) {
         const p2g = d.home === mu.p1 ? d.a : d.h;
         html += `<span class="fx-ltag ${d.leg === 1 ? 'home' : 'away'}">Leg ${d.leg}</span>
           <div class="fx-match">
-            <span class="fx-p r" style="${p1g > p2g ? 'color:var(--green)' : p2g > p1g ? 'color:var(--red)' : ''}">${mu.p1}</span>
+            <span class="fx-p r" style="${p1g > p2g ? 'color:var(--green)' : p2g > p1g ? 'color:var(--red)' : ''}">${escapeHtml(mu.p1)}</span>
             <span class="fx-score">${p1g} – ${p2g}</span>
-            <span class="fx-p" style="${p2g > p1g ? 'color:var(--green)' : p1g > p2g ? 'color:var(--red)' : ''}">${mu.p2}</span>
+            <span class="fx-p" style="${p2g > p1g ? 'color:var(--green)' : p1g > p2g ? 'color:var(--red)' : ''}">${escapeHtml(mu.p2)}</span>
           </div>`;
       }
 
@@ -283,9 +354,22 @@ function renderResults(fixtures) {
     html += `</div>`;
   });
 
-  document.getElementById('resultsContainer').innerHTML = html;
+  const resultsContainer = document.getElementById('resultsContainer');
+  if (resultsContainer) resultsContainer.innerHTML = html;
+}
+
+// Helper function to escape HTML to prevent XSS
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 /* ── INIT & POLL ─────────────────────────────────────────── */
-loadData();
-setInterval(loadData, 15000);
+// Load data when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  loadData();
+  // Set up polling every 15 seconds
+  setInterval(loadData, 15000);
+});
