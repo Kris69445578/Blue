@@ -1,14 +1,13 @@
 /* ── CONFIG ────────────────────────────────────────────────
-   Replace these values with your own.
-   IMPORTANT: Never commit a real GitHub token to a public repo.
-   Use a fine-grained token with only "Gist: Read and Write" scope.
+   1. Go to https://jsonbin.io → Sign up free
+   2. Click "+ Create Bin" → paste {} → Create
+   3. Copy the Bin ID into JSONBIN_ID below
+   4. Go to API Keys → copy your Secret Key into JSONBIN_KEY
 ──────────────────────────────────────────────────────────── */
-const ADMIN_PASSWORD   = 'adminjahim';           // Change this
-const GIST_ID          = 'bcdc1b9c3be807e8d5afff6c9243c692';
-const GITHUB_USERNAME  = 'Kris69445578';
-const GITHUB_TOKEN     = '';  // Paste your token here (keep this file private / server-side)
-const GIST_API_URL     = `https://api.github.com/gists/${GIST_ID}`;
-const GIST_RAW_URL     = `https://gist.githubusercontent.com/${GITHUB_USERNAME}/${GIST_ID}/raw/tournament-data.json`;
+const ADMIN_PASSWORD = 'adminjahim';           // Change this
+const JSONBIN_ID     = '69c68d3ab7ec241ddcacb67d';
+const JSONBIN_KEY    = '$2a$10$DX57eHfCWK5ZkMtEEmfEse3LTvARZQ/B57DePcN/kbnuWqFT1y5re';
+const JSONBIN_URL    = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
 
 /* ── AUTH ──────────────────────────────────────────────────── */
 function checkLogin() {
@@ -160,28 +159,24 @@ function clearDraft() {
   console.log('Draft cleared');
 }
 
-/* ── CLOUD (GitHub Gist) ───────────────────────────────────── */
+/* ── CLOUD (JSONBin.io) ────────────────────────────────────── */
 async function saveToCloud(data) {
-  if (!GITHUB_TOKEN) {
-    console.warn('No GitHub token set — skipping cloud save.');
+  if (!JSONBIN_KEY || JSONBIN_KEY === 'PASTE_YOUR_SECRET_KEY_HERE') {
+    console.warn('No JSONBin key set — skipping cloud save.');
     return false;
   }
   try {
-    const res = await fetch(GIST_API_URL, {
-      method: 'PATCH',
+    const res = await fetch(JSONBIN_URL, {
+      method: 'PUT',
       headers: {
-        'Authorization': `token ${GITHUB_TOKEN}`,
         'Content-Type': 'application/json',
-        'Accept': 'application/vnd.github.v3+json'
+        'X-Master-Key': JSONBIN_KEY,
+        'X-Bin-Versioning': 'false'
       },
-      body: JSON.stringify({
-        files: {
-          'tournament-data.json': { content: JSON.stringify(data, null, 2) }
-        }
-      })
+      body: JSON.stringify(data)
     });
-    if (res.ok) { console.log('Saved to Gist ✓'); return true; }
-    console.error('Gist update failed:', res.status, await res.text());
+    if (res.ok) { console.log('Saved to JSONBin ✓'); return true; }
+    console.error('JSONBin update failed:', res.status, await res.text());
     return false;
   } catch (err) {
     console.error('saveToCloud error:', err);
@@ -498,15 +493,14 @@ async function publishData() {
 
   let success = false;
 
-  if (GITHUB_TOKEN) {
+  if (JSONBIN_KEY && JSONBIN_KEY !== 'PASTE_YOUR_SECRET_KEY_HERE') {
     success = await saveToCloud(window._data);
   }
 
   if (success) {
-    pb.innerHTML = `<span>✅</span><p>Published to GitHub Gist! <a href="index.html">View public page →</a></p>`;
+    pb.innerHTML = `<span>✅</span><p>Published! Your friends can now see the latest results. <a href="index.html">View public page →</a></p>`;
   } else {
-    // Saved to localStorage — public page on same device will pick it up
-    pb.innerHTML = `<span>✅</span><p>Saved locally. <a href="index.html">View public page →</a>${GITHUB_TOKEN ? ' (Gist update failed — check token)' : ''}</p>`;
+    pb.innerHTML = `<span>⚠️</span><p style="color:var(--amber)">Cloud save failed. Add your JSONBin key in admin.js so friends can see updates. <a href="index.html">View locally →</a></p>`;
   }
 
   pb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
