@@ -34,33 +34,43 @@ document.getElementById('adminPanel').addEventListener('click', function(e) {
   if (e.target === this) closeAdminPanel();
 });
 
-/* ── TABS ─────────────────────────────────────────────────── */
+/* ── TABS (FIXED) ──────────────────────────────────────────── */
 function switchTab(btn, panelId) {
+  // Remove active from all tabs
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  
+  // Remove active from all panels
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+  // Activate the clicked tab
   btn.classList.add('active');
-  document.getElementById(panelId).classList.add('active');
+
+  // Activate the corresponding panel
+  const panel = document.getElementById(panelId);
+  if (panel) {
+    panel.classList.add('active');
+  }
 }
 
 /* ── HELPERS ─────────────────────────────────────────────── */
 function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
 
-/* ── LOAD DATA (Fixed for GitHub Pages) ───────────────────── */
+/* ── LOAD DATA (with cache busting) ───────────────────────── */
 async function loadData() {
   let data = null;
 
   try {
-    // Primary: Load from tournament-data.json (public file)
-    const res = await fetch('tournament-data.json?t=' + Date.now());
+    // Force fresh fetch every time
+    const res = await fetch(`tournament-data.json?t=${Date.now()}`);
     if (res.ok) {
       data = await res.json();
     }
   } catch (e) {
-    console.log("Could not load JSON file, trying localStorage...");
+    console.log("JSON file not found yet.");
   }
 
-  // Fallback to localStorage (only for the person who published)
+  // Fallback to localStorage
   if (!data) {
     try {
       const raw = localStorage.getItem('efootball_tournament');
@@ -189,7 +199,7 @@ function renderFixtures(fixtures) {
   });
 
   let html = '';
-  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
+  Object.keys(rounds).sort((a, b) => parseInt(a) - parseInt(b)).forEach(round => {
     html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
     rounds[round].forEach(mu => {
       html += `<div class="fx-card">
@@ -219,7 +229,7 @@ function renderResults(fixtures) {
   if (!Object.keys(rounds).length) return;
 
   let html = '';
-  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
+  Object.keys(rounds).sort((a, b) => parseInt(a) - parseInt(b)).forEach(round => {
     html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
     rounds[round].forEach(mu => {
       let p1Total = 0, p2Total = 0, legsPlayed = 0;
@@ -270,7 +280,7 @@ function renderResults(fixtures) {
   document.getElementById('resultsContainer').innerHTML = html;
 }
 
-/* ── INIT & AUTO REFRESH ─────────────────────────────────── */
+/* ── INIT ─────────────────────────────────────────────────── */
 loadData();
-setInterval(loadData, 15000);   // Refresh every 15 seconds
+setInterval(loadData, 15000);   // Auto refresh every 15 seconds
 </DOCUMENT>
