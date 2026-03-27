@@ -1,13 +1,19 @@
 /* ── AUTH ──────────────────────────────────────────────────── */
-const ADMIN_PASSWORD = 'adminjahim'; // Change this password
+const ADMIN_PASSWORD = 'adminjahim'; // Change this password if you want
 
-// GitHub Gist Configuration - REPLACE WITH YOUR ACTUAL VALUES
+// ==================== IMPORTANT: UPDATE THESE ====================
+// 1. Create a new Classic Personal Access Token at https://github.com/settings/tokens
+//    → Select only the "gist" scope
+// 2. Paste the new token below (it starts with ghp_)
+
 const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692';
 const GITHUB_USERNAME = 'Kris69445578';
-const GITHUB_TOKEN = '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'; // Create a new token after revoking the old one
+const GITHUB_TOKEN = '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'; // ←←← REPLACE WITH YOUR NEW TOKEN
+
 const GIST_API_URL = `https://api.github.com/gists/${GIST_ID}`;
 const GIST_RAW_URL = `https://gist.githubusercontent.com/${GITHUB_USERNAME}/${GIST_ID}/raw/tournament-data.json`;
 
+/* ── LOGIN ─────────────────────────────────────────────────── */
 function checkLogin() {
   if (sessionStorage.getItem('admin_auth') === '1') {
     document.getElementById('loginOverlay').style.display = 'none';
@@ -44,24 +50,11 @@ function show(id) {
 /* ── PERSISTENCE ──────────────────────────────────────────── */
 const DRAFT_KEY = 'efootball_admin_draft';
 
-// Save to GitHub Gist
+// Improved Save to GitHub Gist
 async function saveToCloud(data) {
   try {
-    console.log('Attempting to save to Gist...');
+    console.log('🔄 Publishing to GitHub Gist...');
     
-    // First, get the current gist to get the latest version
-    const getResponse = await fetch(GIST_API_URL, {
-      headers: {
-        'Authorization': `token ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-    
-    if (!getResponse.ok) {
-      throw new Error(`Failed to fetch gist: ${getResponse.status}`);
-    }
-    
-    // Update the gist with new data
     const updateResponse = await fetch(GIST_API_URL, {
       method: 'PATCH',
       headers: {
@@ -77,29 +70,40 @@ async function saveToCloud(data) {
         }
       })
     });
-    
+
     if (updateResponse.ok) {
-      console.log('Data published to Gist successfully');
+      console.log('✅ Successfully published to Gist');
       return true;
     } else {
       const errorText = await updateResponse.text();
-      console.error('Failed to update gist:', errorText);
+      console.error('❌ Gist publish failed:', updateResponse.status, errorText);
+      
+      let msg = `Publish failed! Error ${updateResponse.status}\n\n`;
+      if (updateResponse.status === 401 || updateResponse.status === 403) {
+        msg += "Invalid or expired GitHub token.\nMake sure you created a Classic token with 'gist' scope only.";
+      } else if (updateResponse.status === 404) {
+        msg += "Gist ID not found. Check that GIST_ID is correct.";
+      } else {
+        msg += errorText;
+      }
+      
+      alert(msg);
       return false;
     }
   } catch (error) {
-    console.error('Error saving to Gist:', error);
+    console.error('❌ Network error publishing to Gist:', error);
+    alert('Could not connect to GitHub. Check your internet connection and token.');
     return false;
   }
 }
 
-// Load from GitHub Gist (read-only, no token needed for public gists)
+// Load from GitHub Gist (public, no token needed)
 async function loadFromCloud() {
   try {
-    console.log('Loading from Gist...');
-    const response = await fetch(GIST_RAW_URL);
+    const response = await fetch(GIST_RAW_URL + '?t=' + Date.now()); // cache busting
     if (response.ok) {
       const data = await response.json();
-      console.log('Loaded data from Gist:', data);
+      console.log('Loaded data from Gist');
       return data;
     }
     return null;
@@ -110,17 +114,15 @@ async function loadFromCloud() {
 }
 
 function saveDraft() {
-  // Snapshot current score inputs into fixtures before saving
   fixtures.forEach(ro => {
     ro.matches.forEach(m => {
       const he = document.getElementById('hs_' + m.id);
       const ae = document.getElementById('as_' + m.id);
-      if (he) m.homeScore = he.value;
-      if (ae) m.awayScore = ae.value;
+      if (he) m.homeScore = he.value || '';
+      if (ae) m.awayScore = ae.value || '';
     });
   });
   localStorage.setItem(DRAFT_KEY, JSON.stringify({ players, fixtures }));
-  console.log('Draft saved locally');
 }
 
 function loadDraft() {
@@ -133,10 +135,8 @@ function loadDraft() {
     players = draft.players;
     fixtures = draft.fixtures || [];
 
-    // Restore the player textarea
     document.getElementById('playerInput').value = players.join('\n');
 
-    // Show player tag
     const tag = document.getElementById('playerTag');
     if (tag) {
       tag.classList.remove('hidden');
@@ -149,20 +149,18 @@ function loadDraft() {
       show('fixturesSection');
       show('resultsSection');
 
-      // Restore saved scores into the inputs
       fixtures.forEach(ro => {
         ro.matches.forEach(m => {
           const he = document.getElementById('hs_' + m.id);
           const ae = document.getElementById('as_' + m.id);
-          if (he && m.homeScore !== '') he.value = m.homeScore;
-          if (ae && m.awayScore !== '') ae.value = m.awayScore;
-          if (m.homeScore !== '' || m.awayScore !== '') mark(m.id);
+          if (he && m.homeScore) he.value = m.homeScore;
+          if (ae && m.awayScore) ae.value = m.awayScore;
+          if (m.homeScore || m.awayScore) mark(m.id);
         });
       });
 
       showDraftBanner();
     }
-    console.log('Draft loaded');
   } catch (e) {
     console.warn('Could not restore draft:', e);
   }
@@ -179,27 +177,29 @@ function clearDraft() {
   players = [];
   fixtures = [];
   document.getElementById('playerInput').value = '';
-  const tag = document.getElementById('playerTag');
-  if (tag) tag.classList.add('hidden');
+  document.getElementById('playerTag').classList.add('hidden');
   document.getElementById('fixturesSection').classList.add('hidden');
   document.getElementById('resultsSection').classList.add('hidden');
   document.getElementById('standingsSection').classList.add('hidden');
   document.getElementById('draftBanner').classList.add('hidden');
   document.getElementById('publishBox').classList.remove('show');
   window._data = null;
-  console.log('Draft cleared');
 }
 
-/* ── GENERATE ─────────────────────────────────────────────── */
+/* ── GENERATE FIXTURES ───────────────────────────────────── */
 function generateFixtures() {
   const raw = document.getElementById('playerInput').value.trim();
   players = raw.split('\n').map(s => s.trim()).filter(Boolean);
-  if (players.length < 2) { alert('Enter at least 2 player names.'); return; }
+  if (players.length < 2) {
+    alert('Enter at least 2 player names.');
+    return;
+  }
 
   const tag = document.getElementById('playerTag');
   tag.classList.remove('hidden');
   tag.textContent = '✓ ' + players.length + ' players';
 
+  // Generate round-robin fixtures (home & away)
   fixtures = [];
   let list = [...players];
   if (list.length % 2 !== 0) list.push('BYE');
@@ -229,11 +229,10 @@ function generateFixtures() {
   show('resultsSection');
   showDraftBanner();
   saveDraft();
-  document.getElementById('fixturesSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  console.log('Fixtures generated:', fixtures.length, 'rounds');
+  document.getElementById('fixturesSection').scrollIntoView({ behavior: 'smooth' });
 }
 
-/* ── RENDER FIXTURES ────────────────────────────────────────── */
+/* ── RENDER FUNCTIONS ─────────────────────────────────────── */
 function renderFixtures() {
   let total = 0, html = '', lastLeg = null;
   fixtures.forEach(ro => {
@@ -264,7 +263,6 @@ function renderFixtures() {
   document.getElementById('fixtureCount').textContent = total + ' matches · 2 legs';
 }
 
-/* ── RENDER RESULTS TABLE ───────────────────────────────────── */
 function renderResultsTable() {
   let html = '', idx = 1, lastLeg = null;
   fixtures.forEach(ro => {
@@ -292,9 +290,7 @@ function renderResultsTable() {
   document.getElementById('resultsBody').innerHTML = html;
 }
 
-/* ── SCORE INPUT: mark + debounced autosave ───────────────── */
 let saveTimer = null;
-
 function onScoreInput(id) {
   mark(id);
   clearTimeout(saveTimer);
@@ -311,7 +307,6 @@ function flashSaveIndicator() {
   setTimeout(() => el.classList.remove('visible'), 2000);
 }
 
-/* ── MARK RESULT ──────────────────────────────────────────── */
 function mark(id) {
   const hs = document.getElementById('hs_' + id).value;
   const as = document.getElementById('as_' + id).value;
@@ -321,59 +316,84 @@ function mark(id) {
     if (h > a)      el.innerHTML = '<span class="tag tg-blue">Home Win</span>';
     else if (a > h) el.innerHTML = '<span class="tag tg-orange">Away Win</span>';
     else            el.innerHTML = '<span class="tag tg-amber">Draw</span>';
-  } else { el.textContent = '—'; }
+  } else {
+    el.textContent = '—';
+  }
 }
 
-/* ── CALCULATE ────────────────────────────────────────────── */
+/* ── CALCULATE STANDINGS ─────────────────────────────────── */
 function calculateStandings() {
   const stats = {};
-  players.forEach(p => { stats[p] = { P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0, form: [] }; });
+  players.forEach(p => { 
+    stats[p] = { P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0, form: [] }; 
+  });
+  
   let played = 0;
   fixtures.forEach(ro => {
     ro.matches.forEach(m => {
       const he = document.getElementById('hs_' + m.id);
       const ae = document.getElementById('as_' + m.id);
-      if (!he || !ae) return;
-      if (he.value === '' || ae.value === '') return;
+      if (!he || !ae || he.value === '' || ae.value === '') return;
+      
       const h = parseInt(he.value), a = parseInt(ae.value);
       played++;
       const hm = stats[m.home], am = stats[m.away];
-      hm.P++; am.P++; hm.GF += h; hm.GA += a; am.GF += a; am.GA += h;
-      hm.GD = hm.GF - hm.GA; am.GD = am.GF - am.GA;
-      if (h > a)      { hm.W++; hm.Pts += 3; hm.form.push('W'); am.L++; am.form.push('L'); }
-      else if (a > h) { am.W++; am.Pts += 3; am.form.push('W'); hm.L++; hm.form.push('L'); }
-      else            { hm.D++; hm.Pts++; hm.form.push('D'); am.D++; am.Pts++; am.form.push('D'); }
+      
+      hm.P++; am.P++; 
+      hm.GF += h; hm.GA += a; 
+      am.GF += a; am.GA += h;
+      hm.GD = hm.GF - hm.GA; 
+      am.GD = am.GF - am.GA;
+
+      if (h > a) {
+        hm.W++; hm.Pts += 3; hm.form.push('W');
+        am.L++; am.form.push('L');
+      } else if (a > h) {
+        am.W++; am.Pts += 3; am.form.push('W');
+        hm.L++; hm.form.push('L');
+      } else {
+        hm.D++; hm.Pts++; hm.form.push('D');
+        am.D++; am.Pts++; am.form.push('D');
+      }
     });
   });
+
   const sorted = Object.entries(stats).sort(([, a], [, b]) => {
     if (b.Pts !== a.Pts) return b.Pts - a.Pts;
     if (b.GD !== a.GD) return b.GD - a.GD;
     return b.GF - a.GF;
   });
+
   renderStandings(sorted);
+
   window._data = { 
     players, 
     fixtures: fixtures.map(ro => ({
-      ...ro, matches: ro.matches.map(m => {
+      ...ro, 
+      matches: ro.matches.map(m => {
         const he = document.getElementById('hs_' + m.id);
         const ae = document.getElementById('as_' + m.id);
-        return { ...m, homeScore: he ? he.value : '', awayScore: ae ? ae.value : '' };
+        return { 
+          ...m, 
+          homeScore: he ? he.value : '', 
+          awayScore: ae ? ae.value : '' 
+        };
       })
     })), 
     standings: sorted.map(([name, s], i) => ({ pos: i + 1, name, ...s })), 
     played, 
     updated: new Date().toISOString() 
   };
+
   const mp = document.getElementById('matchesPlayed');
   mp.classList.remove('hidden');
   mp.textContent = played + ' results entered';
+
   show('standingsSection');
   saveDraft();
-  document.getElementById('standingsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  console.log('Standings calculated');
+  document.getElementById('standingsSection').scrollIntoView({ behavior: 'smooth' });
 }
 
-/* ── RENDER STANDINGS ───────────────────────────────────────── */
 function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
 
 function renderStandings(sorted) {
@@ -385,6 +405,7 @@ function renderStandings(sorted) {
         <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Form</th>
       </tr>
     </thead><tbody>`;
+  
   sorted.forEach(([name, s], i) => {
     const pos = i + 1;
     const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos;
@@ -406,47 +427,38 @@ function renderStandings(sorted) {
 /* ── PUBLISH ────────────────────────────────────────────────── */
 async function publishData() {
   if (!window._data) { 
-    alert('Calculate standings first.'); 
+    alert('Please click "Calculate Standings" first.'); 
     return; 
   }
-  
-  // Update fixtures with latest scores
+
+  // Update with latest scores
   window._data.fixtures = fixtures.map(ro => ({
-    ...ro, matches: ro.matches.map(m => {
+    ...ro, 
+    matches: ro.matches.map(m => {
       const he = document.getElementById('hs_' + m.id);
       const ae = document.getElementById('as_' + m.id);
       return { ...m, homeScore: he ? he.value : '', awayScore: ae ? ae.value : '' };
     })
   }));
-  
-  // Save locally
+
   localStorage.setItem('efootball_tournament', JSON.stringify(window._data));
   saveDraft();
-  
+
   const pb = document.getElementById('publishBox');
   pb.innerHTML = '<span>⏳</span><p>Publishing to GitHub Gist...</p>';
   pb.classList.add('show');
-  
-  // Save to Gist for public access
+
   const success = await saveToCloud(window._data);
-  
+
   if (success) {
-    pb.innerHTML = '<span>✅</span><p>Published to GitHub Gist! Players can now see live standings.</p>';
-    setTimeout(() => {
-      pb.classList.remove('show');
-    }, 5000);
-    console.log('Successfully published to Gist');
+    pb.innerHTML = `<span>✅</span><p>Published successfully!<br>Players can view at <a href="index.html" target="_blank">index.html</a></p>`;
+    setTimeout(() => pb.classList.remove('show'), 6000);
   } else {
-    pb.innerHTML = '<span>⚠️</span><p>Failed to publish. Check console for errors.</p>';
-    setTimeout(() => {
-      pb.classList.remove('show');
-    }, 5000);
-    console.error('Failed to publish to Gist');
+    pb.innerHTML = `<span>⚠️</span><p>Publish failed. Check console (F12) for details.</p>`;
+    setTimeout(() => pb.classList.remove('show'), 6000);
   }
-  pb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// Helper function to escape HTML
 function escapeHtml(text) {
   if (!text) return '';
   const div = document.createElement('div');
@@ -457,5 +469,5 @@ function escapeHtml(text) {
 /* ── INIT ─────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', function() {
   loadDraft();
-  console.log('Admin panel initialized');
+  console.log('Admin panel initialized. Remember to update GITHUB_TOKEN!');
 });
