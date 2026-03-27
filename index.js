@@ -1,15 +1,9 @@
-// index.js - FIXED VERSION
+/* ── ADMIN LOGIN (from index page) ───────────────────────── */
+const ADMIN_PASSWORD = 'adminjahim'; // Must match admin.js
 
-const ADMIN_PASSWORD = 'adminjahim';   // Must match the one in admin.js
-
-/* ADMIN LOGIN FROM PUBLIC PAGE */
 function openAdminPanel() {
   document.getElementById('adminPanel').classList.add('open');
-  setTimeout(() => {
-    const pwField = document.getElementById('loginPassword');
-    pwField.value = '';
-    pwField.focus();
-  }, 100);
+  setTimeout(() => document.getElementById('loginPassword').focus(), 50);
 }
 
 function closeAdminPanel() {
@@ -18,21 +12,28 @@ function closeAdminPanel() {
   document.getElementById('loginPassword').value = '';
 }
 
-function doLoginFromPublic() {
-  const pw = document.getElementById('loginPassword').value.trim();
+function doLogin() {
+  const pw = document.getElementById('loginPassword').value;
   if (pw === ADMIN_PASSWORD) {
     sessionStorage.setItem('admin_auth', '1');
     window.location.href = 'admin.htm';
   } else {
-    const err = document.getElementById('loginError');
-    err.textContent = "Incorrect password. Please try again.";
-    err.classList.add('show');
+    document.getElementById('loginError').classList.add('show');
     document.getElementById('loginPassword').value = '';
     document.getElementById('loginPassword').focus();
   }
 }
 
-/* TABS */
+document.getElementById('loginPassword').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doLogin();
+  if (e.key === 'Escape') closeAdminPanel();
+});
+
+document.getElementById('adminPanel').addEventListener('click', function(e) {
+  if (e.target === this) closeAdminPanel();
+});
+
+/* ── TABS ─────────────────────────────────────────────────── */
 function switchTab(btn, panelId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -40,66 +41,55 @@ function switchTab(btn, panelId) {
   document.getElementById(panelId).classList.add('active');
 }
 
+/* ── HELPERS ─────────────────────────────────────────────── */
 function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
-function show(id) { 
-  const el = document.getElementById(id); 
-  if (el) el.classList.remove('hidden'); 
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+
+/* ── LOAD DATA FROM JSON FILE ────────────────────────────── */
+function loadData() {
+  fetch('data.php')
+    .then(response => response.json())
+    .then(data => {
+      if (!data) return;
+
+      show('liveTag');
+
+      if (data.updated) {
+        const d = new Date(data.updated);
+        document.getElementById('lastUpdated').textContent = 'Last updated: ' + d.toLocaleString();
+      }
+
+      if (data.standings && data.standings.length) {
+        document.getElementById('heroStats').style.display = 'flex';
+        document.getElementById('statPlayers').textContent = data.standings.length;
+        document.getElementById('statMatches').textContent = data.played || 0;
+        document.getElementById('statLeader').textContent = data.standings[0]?.name || '—';
+        renderStandings(data.standings);
+        renderPodium(data.standings);
+        renderTicker(data.standings);
+        const tt = document.getElementById('totalMatchTag');
+        tt.classList.remove('hidden');
+        tt.textContent = data.standings.length + ' players';
+      }
+
+      if (data.fixtures && data.fixtures.length) {
+        renderFixtures(data.fixtures);
+        renderResults(data.fixtures);
+      }
+    })
+    .catch(error => {
+      console.error('Error loading data:', error);
+    });
 }
 
-/* LOAD DATA FROM data.json */
-async function loadData() {
-  let data = null;
-
-  try {
-    const res = await fetch('data.json?' + Date.now());
-    if (res.ok) data = await res.json();
-  } catch (e) {}
-
-  if (!data) {
-    try {
-      const raw = localStorage.getItem('efootball_tournament');
-      if (raw) data = JSON.parse(raw);
-    } catch (e) {}
-  }
-
-  if (!data) return;
-
-  show('liveTag');
-
-  if (data.updated) {
-    const d = new Date(data.updated);
-    document.getElementById('lastUpdated').textContent = 'Last updated: ' + d.toLocaleString();
-  }
-
-  if (data.standings && data.standings.length) {
-    document.getElementById('heroStats').style.display = 'flex';
-    document.getElementById('statPlayers').textContent = data.standings.length;
-    document.getElementById('statMatches').textContent = data.played || 0;
-    document.getElementById('statLeader').textContent = data.standings[0]?.name || '—';
-
-    renderStandings(data.standings);
-    renderPodium(data.standings);
-    renderTicker(data.standings);
-
-    const tt = document.getElementById('totalMatchTag');
-    tt.classList.remove('hidden');
-    tt.textContent = data.standings.length + ' players';
-  }
-
-  if (data.fixtures && data.fixtures.length) {
-    renderFixtures(data.fixtures);
-    renderResults(data.fixtures);
-  }
-}
-
-/* Render functions remain the same as previous version */
+/* ── STANDINGS ────────────────────────────────────────────── */
 function renderStandings(standings) {
   let html = `<div class="tbl-wrap"><table class="stable">
-    <thead><tr>
+    <thead>
       <th style="width:36px">Pos</th><th class="tl">Player</th>
       <th>P</th><th>W</th><th>D</th><th>L</th>
       <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Form</th>
-    </tr></thead><tbody>`;
+    </thead><tbody>`;
   standings.forEach((s, i) => {
     const pos = i + 1;
     const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos;
@@ -119,6 +109,7 @@ function renderStandings(standings) {
   document.getElementById('standingsContainer').innerHTML = html;
 }
 
+/* ── PODIUM ──────────────────────────────────────────────── */
 function renderPodium(standings) {
   if (standings.length < 1) return;
   const medals = ['🥇', '🥈', '🥉'];
@@ -138,6 +129,7 @@ function renderPodium(standings) {
   show('podiumSection');
 }
 
+/* ── TICKER ──────────────────────────────────────────────── */
 function renderTicker(standings) {
   let html = '';
   standings.forEach(s => {
@@ -148,10 +140,12 @@ function renderTicker(standings) {
       <span class="sep">///</span>
     </span>`;
   });
-  document.getElementById('tickerInner').innerHTML = html + html;
+  const ti = document.getElementById('tickerInner');
+  ti.innerHTML = html + html;
   show('tickerWrap');
 }
 
+/* ── BUILD MATCHUP MAP ───────────────────────────────────── */
 function buildMatchups(fixtures) {
   const map = {};
   fixtures.forEach(ro => {
@@ -169,6 +163,7 @@ function buildMatchups(fixtures) {
   return map;
 }
 
+/* ── FIXTURES ────────────────────────────────────────────── */
 function renderFixtures(fixtures) {
   const map = buildMatchups(fixtures);
   const rounds = {};
@@ -178,7 +173,7 @@ function renderFixtures(fixtures) {
   });
 
   let html = '';
-  Object.keys(rounds).sort((a,b) => a-b).forEach(round => {
+  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
     html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
     rounds[round].forEach(mu => {
       html += `<div class="fx-card">
@@ -194,11 +189,12 @@ function renderFixtures(fixtures) {
   if (html) document.getElementById('fixturesContainer').innerHTML = html;
 }
 
+/* ── RESULTS ─────────────────────────────────────────────── */
 function renderResults(fixtures) {
   const map = buildMatchups(fixtures);
   const rounds = {};
   Object.values(map).forEach(mu => {
-    const hasScore = mu.legs.some(l => l.homeScore !== '' && l.awayScore !== '');
+    const hasScore = mu.legs.some(l => l.homeScore !== '' && l.homeScore !== undefined && l.awayScore !== '' && l.awayScore !== undefined);
     if (!hasScore) return;
     if (!rounds[mu.round]) rounds[mu.round] = [];
     rounds[mu.round].push(mu);
@@ -207,27 +203,28 @@ function renderResults(fixtures) {
   if (!Object.keys(rounds).length) return;
 
   let html = '';
-  Object.keys(rounds).sort((a,b)=>a-b).forEach(round => {
+  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
     html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
     rounds[round].forEach(mu => {
       let p1Total = 0, p2Total = 0, legsPlayed = 0;
       const legDetails = [];
 
       mu.legs.forEach(l => {
-        if (l.homeScore === '' || l.awayScore === '') return;
-        const h = parseInt(l.homeScore), a = parseInt(l.awayScore);
+        const hs = l.homeScore, as = l.awayScore;
+        if (hs === '' || hs === undefined || as === '' || as === undefined) return;
+        const h = parseInt(hs), a = parseInt(as);
         legsPlayed++;
         if (l.home === mu.p1) { p1Total += h; p2Total += a; }
-        else { p1Total += a; p2Total += h; }
+        else                  { p1Total += a; p2Total += h; }
         legDetails.push({ leg: l.leg, home: l.home, away: l.away, h, a });
       });
 
       const bothLegs = legsPlayed === 2;
-      const cardCls = bothLegs 
-        ? (p1Total > p2Total ? 'played' : p2Total > p1Total ? 'played away-win' : 'played draw') 
-        : 'played';
+      const resultCls = p1Total > p2Total ? 'played' : p2Total > p1Total ? 'played away-win' : 'played draw';
+      const cardCls = bothLegs ? resultCls : 'played';
+      const breakdown = legDetails.map(d => `Leg ${d.leg}: ${d.home} ${d.h}–${d.a} ${d.away}`).join(' · ');
 
-      html += `<div class="fx-card ${cardCls}" title="${legDetails.map(d => `Leg ${d.leg}: ${d.home} ${d.h}–${d.a} ${d.away}`).join(' · ')}">`;
+      html += `<div class="fx-card ${cardCls}" title="${breakdown}">`;
 
       if (bothLegs) {
         html += `<span class="fx-ltag agg">Aggregate</span>
@@ -235,7 +232,8 @@ function renderResults(fixtures) {
             <span class="fx-p r" style="${p1Total > p2Total ? 'color:var(--green)' : p2Total > p1Total ? 'color:var(--red)' : ''}">${mu.p1}</span>
             <span class="fx-score">${p1Total} – ${p2Total}</span>
             <span class="fx-p" style="${p2Total > p1Total ? 'color:var(--green)' : p1Total > p2Total ? 'color:var(--red)' : ''}">${mu.p2}</span>
-          </div>`;
+          </div>
+          <div class="fx-legs">${legDetails.map(d => `<span>Leg ${d.leg}: ${d.home === mu.p1 ? d.h+'-'+d.a : d.a+'-'+d.h}</span>`).join('')}</div>`;
       } else {
         const d = legDetails[0];
         const p1g = d.home === mu.p1 ? d.h : d.a;
@@ -247,14 +245,15 @@ function renderResults(fixtures) {
             <span class="fx-p" style="${p2g > p1g ? 'color:var(--green)' : p1g > p2g ? 'color:var(--red)' : ''}">${mu.p2}</span>
           </div>`;
       }
+
       html += `</div>`;
     });
     html += `</div>`;
   });
 
-  document.getElementById('resultsContainer').innerHTML = html || '<div class="empty"><div class="eico">🎯</div><h3>No results yet</h3><p>Match results will appear here once entered by the admin.</p></div>';
+  document.getElementById('resultsContainer').innerHTML = html;
 }
 
-/* INIT */
+/* ── INIT & POLL ─────────────────────────────────────────── */
 loadData();
 setInterval(loadData, 15000);
