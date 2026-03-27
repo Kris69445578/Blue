@@ -95,3 +95,8 @@ table.stable thead th{font-size:.7rem}
 
 /* FOOTER */
 footer{text-align:center;padding:28px;color:var(--dim);font-size:.8rem;border-top:1px solid var(--border-s)}
+
+/* AGGREGATE RESULT STYLES */
+.fx-ltag.agg{background:rgba(139,92,246,.12);color:#a78bfa;border:1px solid rgba(139,92,246,.25);font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;display:inline-block;width:fit-content}
+.fx-legs{display:flex;gap:10px;margin-top:2px}
+.fx-legs span{font-size:.68rem;color:var(--dim);font-weight:500}
