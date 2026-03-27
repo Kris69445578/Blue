@@ -2,8 +2,8 @@
    Must match admin.js
 ──────────────────────────────────────────────────────────── */
 const ADMIN_PASSWORD = 'adminjahim';
-const JSONBIN_ID     = 'PASTE_YOUR_BIN_ID_HERE';
-const JSONBIN_KEY    = 'PASTE_YOUR_SECRET_KEY_HERE';
+const JSONBIN_ID     = '69c68d3ab7ec241ddcacb67d';
+const JSONBIN_KEY    = '$2a$10$DX57eHfCWK5ZkMtEEmfEse3LTvARZQ/B57DePcN/kbnuWqFT1y5re';
 const JSONBIN_URL    = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
 
 /* ── CLOUD LOAD ──────────────────────────────────────────── */
