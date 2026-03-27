@@ -143,27 +143,47 @@ function renderTicker(standings) {
   show('tickerWrap');
 }
 
+/* ── BUILD MATCHUP MAP ───────────────────────────────────── */
+// Returns a map: "PlayerA vs PlayerB" -> { playerA, playerB, round, legs: [{h,a}] }
+// Always keyed with the alphabetically-first name first so both legs map to same entry.
+function buildMatchups(fixtures) {
+  const map = {};
+  fixtures.forEach(ro => {
+    ro.matches.forEach(m => {
+      // Canonical key: always sort names so leg1 and leg2 share the same key
+      const [p1, p2] = [m.home, m.away].sort();
+      const key = `${ro.round}__${p1}__${p2}`;
+      if (!map[key]) map[key] = { p1, p2, round: ro.round, legs: [] };
+      map[key].legs.push({
+        leg: m.leg,
+        home: m.home, away: m.away,
+        homeScore: m.homeScore, awayScore: m.awayScore
+      });
+    });
+  });
+  return map;
+}
+
 /* ── FIXTURES ────────────────────────────────────────────── */
 function renderFixtures(fixtures) {
-  let html = '', lastLeg = null;
-  fixtures.forEach(ro => {
-    if (ro.leg !== lastLeg) {
-      lastLeg = ro.leg;
-      const cls = ro.leg === 1 ? 'lb1' : 'lb2';
-      const icon = ro.leg === 1 ? '🏠' : '✈️';
-      const title = ro.leg === 1 ? 'Leg 1 — First Leg (Home)' : 'Leg 2 — Second Leg (Away)';
-      html += `<div class="leg-banner ${cls}">${icon} <strong>${title}</strong></div>`;
-    }
-    html += `<div class="rl">Round ${ro.round}</div><div class="fx-grid">`;
-    ro.matches.forEach(m => {
-      const tc = m.leg === 1 ? 'home' : 'away';
-      const tt = m.leg === 1 ? 'Home leg' : 'Away leg';
+  const map = buildMatchups(fixtures);
+
+  // Group unique matchups by round
+  const rounds = {};
+  Object.values(map).forEach(mu => {
+    if (!rounds[mu.round]) rounds[mu.round] = [];
+    rounds[mu.round].push(mu);
+  });
+
+  let html = '';
+  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
+    html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
+    rounds[round].forEach(mu => {
       html += `<div class="fx-card">
-        <span class="fx-ltag ${tc}">${tt}</span>
         <div class="fx-match">
-          <span class="fx-p r">${m.home}</span>
+          <span class="fx-p r">${mu.p1}</span>
           <span class="fx-vs">vs</span>
-          <span class="fx-p">${m.away}</span>
+          <span class="fx-p">${mu.p2}</span>
         </div>
       </div>`;
     });
@@ -174,47 +194,76 @@ function renderFixtures(fixtures) {
 
 /* ── RESULTS ─────────────────────────────────────────────── */
 function renderResults(fixtures) {
-  let html = '', hasAny = false, lastLeg = null;
-  fixtures.forEach(ro => {
-    const played = ro.matches.filter(m => m.homeScore !== '' && m.awayScore !== '' && m.homeScore !== undefined);
-    if (!played.length) return;
-    hasAny = true;
-    if (ro.leg !== lastLeg) {
-      lastLeg = ro.leg;
-      const cls = ro.leg === 1 ? 'lb1' : 'lb2';
-      const icon = ro.leg === 1 ? '🏠' : '✈️';
-      const title = ro.leg === 1 ? 'Leg 1 — First Leg Results' : 'Leg 2 — Second Leg Results';
-      html += `<div class="leg-banner ${cls}">${icon} <strong>${title}</strong></div>`;
-    }
-    html += `<div class="rl">Round ${ro.round}</div><div class="fx-grid">`;
-    ro.matches.forEach(m => {
-      const tc = m.leg === 1 ? 'home' : 'away';
-      const tt = m.leg === 1 ? 'Home leg' : 'Away leg';
-      if (m.homeScore === '' || m.awayScore === '' || m.homeScore === undefined) {
-        html += `<div class="fx-card">
-          <span class="fx-ltag ${tc}">${tt}</span>
+  const map = buildMatchups(fixtures);
+
+  // Group by round, only include matchups where at least one leg is played
+  const rounds = {};
+  Object.values(map).forEach(mu => {
+    const hasScore = mu.legs.some(l => l.homeScore !== '' && l.homeScore !== undefined && l.awayScore !== '' && l.awayScore !== undefined);
+    if (!hasScore) return;
+    if (!rounds[mu.round]) rounds[mu.round] = [];
+    rounds[mu.round].push(mu);
+  });
+
+  if (!Object.keys(rounds).length) return;
+
+  let html = '';
+  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
+    html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
+    rounds[round].forEach(mu => {
+      // For each leg, find the goals scored by p1 and p2
+      // p1/p2 may be home in one leg and away in the other
+      let p1Total = 0, p2Total = 0, legsPlayed = 0;
+      const legDetails = [];
+
+      mu.legs.forEach(l => {
+        const hs = l.homeScore, as = l.awayScore;
+        if (hs === '' || hs === undefined || as === '' || as === undefined) return;
+        const h = parseInt(hs), a = parseInt(as);
+        legsPlayed++;
+        // Determine which score belongs to p1 vs p2
+        if (l.home === mu.p1) { p1Total += h; p2Total += a; }
+        else                  { p1Total += a; p2Total += h; }
+        legDetails.push({ leg: l.leg, home: l.home, away: l.away, h, a });
+      });
+
+      const bothLegs = legsPlayed === 2;
+      const resultCls = p1Total > p2Total ? 'played' : p2Total > p1Total ? 'played away-win' : 'played draw';
+      const cardCls = bothLegs ? resultCls : 'played';
+
+      // Leg breakdown tooltip text
+      const breakdown = legDetails.map(d => `Leg ${d.leg}: ${d.home} ${d.h}–${d.a} ${d.away}`).join(' · ');
+
+      html += `<div class="fx-card ${cardCls}" title="${breakdown}">`;
+
+      if (bothLegs) {
+        // Show aggregate
+        html += `<span class="fx-ltag agg">Aggregate</span>
           <div class="fx-match">
-            <span class="fx-p r">${m.home}</span>
-            <span class="fx-vs">vs</span>
-            <span class="fx-p">${m.away}</span>
+            <span class="fx-p r" style="${p1Total > p2Total ? 'color:var(--green)' : p2Total > p1Total ? 'color:var(--red)' : ''}">${mu.p1}</span>
+            <span class="fx-score">${p1Total} – ${p2Total}</span>
+            <span class="fx-p" style="${p2Total > p1Total ? 'color:var(--green)' : p1Total > p2Total ? 'color:var(--red)' : ''}">${mu.p2}</span>
           </div>
-        </div>`;
+          <div class="fx-legs">${legDetails.map(d => `<span>Leg ${d.leg}: ${d.home === mu.p1 ? d.h+'-'+d.a : d.a+'-'+d.h}</span>`).join('')}</div>`;
       } else {
-        const h = parseInt(m.homeScore), a = parseInt(m.awayScore);
-        const resultCls = h > a ? 'played' : a > h ? 'played away-win' : 'played draw';
-        html += `<div class="fx-card ${resultCls}">
-          <span class="fx-ltag ${tc}">${tt}</span>
+        // Only one leg played so far
+        const d = legDetails[0];
+        const p1g = d.home === mu.p1 ? d.h : d.a;
+        const p2g = d.home === mu.p1 ? d.a : d.h;
+        html += `<span class="fx-ltag ${d.leg === 1 ? 'home' : 'away'}">Leg ${d.leg}</span>
           <div class="fx-match">
-            <span class="fx-p r" style="${h > a ? 'color:var(--green)' : a > h ? 'color:var(--red)' : ''}">${m.home}</span>
-            <span class="fx-score">${h} – ${a}</span>
-            <span class="fx-p" style="${a > h ? 'color:var(--green)' : h > a ? 'color:var(--red)' : ''}">${m.away}</span>
-          </div>
-        </div>`;
+            <span class="fx-p r" style="${p1g > p2g ? 'color:var(--green)' : p2g > p1g ? 'color:var(--red)' : ''}">${mu.p1}</span>
+            <span class="fx-score">${p1g} – ${p2g}</span>
+            <span class="fx-p" style="${p2g > p1g ? 'color:var(--green)' : p1g > p2g ? 'color:var(--red)' : ''}">${mu.p2}</span>
+          </div>`;
       }
+
+      html += `</div>`;
     });
     html += `</div>`;
   });
-  if (hasAny) document.getElementById('resultsContainer').innerHTML = html;
+
+  document.getElementById('resultsContainer').innerHTML = html;
 }
 
 /* ── INIT & POLL ─────────────────────────────────────────── */
