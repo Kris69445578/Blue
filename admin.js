@@ -2,10 +2,11 @@
 const ADMIN_PASSWORD = 'adminjahim'; // Change this password
 
 // GitHub Gist Configuration - REPLACE WITH YOUR ACTUAL VALUES
-const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692'; // e.g., 'abc123def456'
+const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692';
+const GITHUB_USERNAME = 'Kris69445578';
 const GITHUB_TOKEN = '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'; // Your personal access token
 const GIST_API_URL = `https://api.github.com/gists/${GIST_ID}`;
-const GIST_RAW_URL = `https://gist.githubusercontent.com/raw/${GIST_ID}/tournament-data.json`;
+const GIST_RAW_URL = `https://gist.githubusercontent.com/${GITHUB_USERNAME}/${GIST_ID}/raw/tournament-data.json`;
 
 function checkLogin() {
   if (sessionStorage.getItem('admin_auth') === '1') {
