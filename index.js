@@ -1,17 +1,22 @@
 /* ── CONFIG ─────────────────────────────────────────────────
    Must match admin.js
 ──────────────────────────────────────────────────────────── */
-const ADMIN_PASSWORD  = 'adminjahim';
-const GIST_ID         = 'bcdc1b9c3be807e8d5afff6c9243c692';
-const GITHUB_USERNAME = 'Kris69445578';
-const GIST_RAW_URL    = `https://gist.githubusercontent.com/${GITHUB_USERNAME}/${GIST_ID}/raw/tournament-data.json`;
+const ADMIN_PASSWORD = 'adminjahim';
+const JSONBIN_ID     = 'PASTE_YOUR_BIN_ID_HERE';
+const JSONBIN_KEY    = 'PASTE_YOUR_SECRET_KEY_HERE';
+const JSONBIN_URL    = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
 
 /* ── CLOUD LOAD ──────────────────────────────────────────── */
 async function loadFromCloud() {
+  if (!JSONBIN_KEY || JSONBIN_KEY === 'PASTE_YOUR_SECRET_KEY_HERE') return null;
   try {
-    // Cache-bust so we always get the latest version
-    const res = await fetch(GIST_RAW_URL + '?t=' + Date.now());
-    if (res.ok) return await res.json();
+    const res = await fetch(JSONBIN_URL + '/latest', {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    if (res.ok) {
+      const json = await res.json();
+      return json.record || null;
+    }
     return null;
   } catch (err) {
     console.error('Cloud load error:', err);
