@@ -4,7 +4,7 @@ const ADMIN_PASSWORD = 'adminjahim'; // Change this password
 // GitHub Gist Configuration - REPLACE WITH YOUR ACTUAL VALUES
 const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692';
 const GITHUB_USERNAME = 'Kris69445578';
-const GITHUB_TOKEN = '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'; // Your personal access token
+const GITHUB_TOKEN = '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'; // Create a new token after revoking the old one
 const GIST_API_URL = `https://api.github.com/gists/${GIST_ID}`;
 const GIST_RAW_URL = `https://gist.githubusercontent.com/${GITHUB_USERNAME}/${GIST_ID}/raw/tournament-data.json`;
 
@@ -36,7 +36,10 @@ checkLogin();
 /* ── STATE ────────────────────────────────────────────────── */
 let players = [], fixtures = [];
 
-function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function show(id) { 
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('hidden');
+}
 
 /* ── PERSISTENCE ──────────────────────────────────────────── */
 const DRAFT_KEY = 'efootball_admin_draft';
@@ -44,7 +47,9 @@ const DRAFT_KEY = 'efootball_admin_draft';
 // Save to GitHub Gist
 async function saveToCloud(data) {
   try {
-    // Get current gist to get latest version
+    console.log('Attempting to save to Gist...');
+    
+    // First, get the current gist to get the latest version
     const getResponse = await fetch(GIST_API_URL, {
       headers: {
         'Authorization': `token ${GITHUB_TOKEN}`,
@@ -55,8 +60,6 @@ async function saveToCloud(data) {
     if (!getResponse.ok) {
       throw new Error(`Failed to fetch gist: ${getResponse.status}`);
     }
-    
-    const gistData = await getResponse.json();
     
     // Update the gist with new data
     const updateResponse = await fetch(GIST_API_URL, {
@@ -79,7 +82,8 @@ async function saveToCloud(data) {
       console.log('Data published to Gist successfully');
       return true;
     } else {
-      console.error('Failed to update gist:', await updateResponse.text());
+      const errorText = await updateResponse.text();
+      console.error('Failed to update gist:', errorText);
       return false;
     }
   } catch (error) {
@@ -91,9 +95,11 @@ async function saveToCloud(data) {
 // Load from GitHub Gist (read-only, no token needed for public gists)
 async function loadFromCloud() {
   try {
+    console.log('Loading from Gist...');
     const response = await fetch(GIST_RAW_URL);
     if (response.ok) {
       const data = await response.json();
+      console.log('Loaded data from Gist:', data);
       return data;
     }
     return null;
@@ -114,6 +120,7 @@ function saveDraft() {
     });
   });
   localStorage.setItem(DRAFT_KEY, JSON.stringify({ players, fixtures }));
+  console.log('Draft saved locally');
 }
 
 function loadDraft() {
@@ -131,8 +138,10 @@ function loadDraft() {
 
     // Show player tag
     const tag = document.getElementById('playerTag');
-    tag.classList.remove('hidden');
-    tag.textContent = '✓ ' + players.length + ' players';
+    if (tag) {
+      tag.classList.remove('hidden');
+      tag.textContent = '✓ ' + players.length + ' players';
+    }
 
     if (fixtures.length) {
       renderFixtures();
@@ -153,6 +162,7 @@ function loadDraft() {
 
       showDraftBanner();
     }
+    console.log('Draft loaded');
   } catch (e) {
     console.warn('Could not restore draft:', e);
   }
@@ -169,13 +179,15 @@ function clearDraft() {
   players = [];
   fixtures = [];
   document.getElementById('playerInput').value = '';
-  document.getElementById('playerTag').classList.add('hidden');
+  const tag = document.getElementById('playerTag');
+  if (tag) tag.classList.add('hidden');
   document.getElementById('fixturesSection').classList.add('hidden');
   document.getElementById('resultsSection').classList.add('hidden');
   document.getElementById('standingsSection').classList.add('hidden');
   document.getElementById('draftBanner').classList.add('hidden');
   document.getElementById('publishBox').classList.remove('show');
   window._data = null;
+  console.log('Draft cleared');
 }
 
 /* ── GENERATE ─────────────────────────────────────────────── */
@@ -218,6 +230,7 @@ function generateFixtures() {
   showDraftBanner();
   saveDraft();
   document.getElementById('fixturesSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  console.log('Fixtures generated:', fixtures.length, 'rounds');
 }
 
 /* ── RENDER FIXTURES ────────────────────────────────────────── */
@@ -239,9 +252,9 @@ function renderFixtures() {
       html += `<div class="fx-card">
         <span class="fx-ltag ${tc}">${tt}</span>
         <div class="fx-match">
-          <span class="fx-p r">${m.home}</span>
+          <span class="fx-p r">${escapeHtml(m.home)}</span>
           <span class="fx-vs">vs</span>
-          <span class="fx-p">${m.away}</span>
+          <span class="fx-p">${escapeHtml(m.away)}</span>
         </div>
       </div>`;
     });
@@ -267,11 +280,11 @@ function renderResultsTable() {
       const bt = m.leg === 1 ? 'H' : 'A';
       html += `<tr>
         <td style="color:var(--dim);font-size:.78rem">${idx++}</td>
-        <td class="pname">${m.home} <span class="lbadge ${bc}">${bt}</span></td>
+        <td class="pname">${escapeHtml(m.home)} <span class="lbadge ${bc}">${bt}</span></td>
         <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="hs_${m.id}" placeholder="–" oninput="onScoreInput(${m.id})" onchange="onScoreInput(${m.id})"></td>
         <td style="text-align:center"><span class="sc">:</span></td>
         <td style="text-align:center"><input type="number" min="0" max="99" class="score-in" id="as_${m.id}" placeholder="–" oninput="onScoreInput(${m.id})" onchange="onScoreInput(${m.id})"></td>
-        <td class="pname">${m.away}</td>
+        <td class="pname">${escapeHtml(m.away)}</td>
         <td id="st_${m.id}" style="font-size:.8rem;color:var(--dim)">—</td>
       </tr>`;
     });
@@ -338,19 +351,26 @@ function calculateStandings() {
     return b.GF - a.GF;
   });
   renderStandings(sorted);
-  window._data = { players, fixtures: fixtures.map(ro => ({
-    ...ro, matches: ro.matches.map(m => {
-      const he = document.getElementById('hs_' + m.id);
-      const ae = document.getElementById('as_' + m.id);
-      return { ...m, homeScore: he ? he.value : '', awayScore: ae ? ae.value : '' };
-    })
-  })), standings: sorted.map(([name, s], i) => ({ pos: i + 1, name, ...s })), played, updated: new Date().toISOString() };
+  window._data = { 
+    players, 
+    fixtures: fixtures.map(ro => ({
+      ...ro, matches: ro.matches.map(m => {
+        const he = document.getElementById('hs_' + m.id);
+        const ae = document.getElementById('as_' + m.id);
+        return { ...m, homeScore: he ? he.value : '', awayScore: ae ? ae.value : '' };
+      })
+    })), 
+    standings: sorted.map(([name, s], i) => ({ pos: i + 1, name, ...s })), 
+    played, 
+    updated: new Date().toISOString() 
+  };
   const mp = document.getElementById('matchesPlayed');
   mp.classList.remove('hidden');
   mp.textContent = played + ' results entered';
   show('standingsSection');
   saveDraft();
   document.getElementById('standingsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  console.log('Standings calculated');
 }
 
 /* ── RENDER STANDINGS ───────────────────────────────────────── */
@@ -358,11 +378,13 @@ function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
 
 function renderStandings(sorted) {
   let html = `<table class="stable">
-    <thead><tr>
-      <th style="width:36px">Pos</th><th class="tl">Player</th>
-      <th>P</th><th>W</th><th>D</th><th>L</th>
-      <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Form</th>
-    </tr></thead><tbody>`;
+    <thead>
+      <tr>
+        <th style="width:36px">Pos</th><th class="tl">Player</th>
+        <th>P</th><th>W</th><th>D</th><th>L</th>
+        <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Form</th>
+      </tr>
+    </thead><tbody>`;
   sorted.forEach(([name, s], i) => {
     const pos = i + 1;
     const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos;
@@ -370,7 +392,7 @@ function renderStandings(sorted) {
     const form = s.form.slice(-5).map(fi).join('');
     html += `<tr>
       <td>${medal}</td>
-      <td class="tl pname-s">${name}</td>
+      <td class="tl pname-s">${escapeHtml(name)}</td>
       <td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td>
       <td>${s.GF}</td><td>${s.GA}</td><td>${gd}</td>
       <td class="pts">${s.Pts}</td>
@@ -383,7 +405,10 @@ function renderStandings(sorted) {
 
 /* ── PUBLISH ────────────────────────────────────────────────── */
 async function publishData() {
-  if (!window._data) { alert('Calculate standings first.'); return; }
+  if (!window._data) { 
+    alert('Calculate standings first.'); 
+    return; 
+  }
   
   // Update fixtures with latest scores
   window._data.fixtures = fixtures.map(ro => ({
@@ -398,22 +423,39 @@ async function publishData() {
   localStorage.setItem('efootball_tournament', JSON.stringify(window._data));
   saveDraft();
   
+  const pb = document.getElementById('publishBox');
+  pb.innerHTML = '<span>⏳</span><p>Publishing to GitHub Gist...</p>';
+  pb.classList.add('show');
+  
   // Save to Gist for public access
   const success = await saveToCloud(window._data);
   
-  const pb = document.getElementById('publishBox');
   if (success) {
     pb.innerHTML = '<span>✅</span><p>Published to GitHub Gist! Players can now see live standings.</p>';
-    pb.classList.add('show');
     setTimeout(() => {
       pb.classList.remove('show');
     }, 5000);
+    console.log('Successfully published to Gist');
   } else {
     pb.innerHTML = '<span>⚠️</span><p>Failed to publish. Check console for errors.</p>';
-    pb.classList.add('show');
+    setTimeout(() => {
+      pb.classList.remove('show');
+    }, 5000);
+    console.error('Failed to publish to Gist');
   }
   pb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// Helper function to escape HTML
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 /* ── INIT ─────────────────────────────────────────────────── */
-loadDraft();
+document.addEventListener('DOMContentLoaded', function() {
+  loadDraft();
+  console.log('Admin panel initialized');
+});
