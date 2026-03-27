@@ -1,6 +1,24 @@
-<DOCUMENT filename="index.js">
-/* ── ADMIN LOGIN ───────────────────────────────────────────── */
-const ADMIN_PASSWORD = 'adminjahim';
+/* ── ADMIN LOGIN (from index page) ───────────────────────── */
+const ADMIN_PASSWORD = 'adminjahim'; // Must match admin.js
+
+// GitHub Gist Configuration - REPLACE WITH YOUR ACTUAL VALUES
+const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692'; // e.g., 'abc123def456'
+const GIST_RAW_URL = `https://gist.githubusercontent.com/raw/${GIST_ID}/tournament-data.json`;
+
+// Load from GitHub Gist (read-only, no token needed for public gists)
+async function loadFromCloud() {
+  try {
+    const response = await fetch(GIST_RAW_URL);
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading from Gist:', error);
+    return null;
+  }
+}
 
 function openAdminPanel() {
   document.getElementById('adminPanel').classList.add('open');
@@ -34,50 +52,40 @@ document.getElementById('adminPanel').addEventListener('click', function(e) {
   if (e.target === this) closeAdminPanel();
 });
 
-/* ── TABS (FIXED) ──────────────────────────────────────────── */
+/* ── TABS ─────────────────────────────────────────────────── */
 function switchTab(btn, panelId) {
-  // Remove active from all tabs
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  
-  // Remove active from all panels
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-
-  // Activate the clicked tab
   btn.classList.add('active');
-
-  // Activate the corresponding panel
-  const panel = document.getElementById(panelId);
-  if (panel) {
-    panel.classList.add('active');
-  }
+  document.getElementById(panelId).classList.add('active');
 }
 
 /* ── HELPERS ─────────────────────────────────────────────── */
 function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
 
-/* ── LOAD DATA (with cache busting) ───────────────────────── */
+/* ── LOAD DATA ───────────────────────────────────────────── */
 async function loadData() {
-  let data = null;
-
+  let data;
+  
+  // Try to load from Gist first
   try {
-    // Force fresh fetch every time
-    const res = await fetch(`tournament-data.json?t=${Date.now()}`);
-    if (res.ok) {
-      data = await res.json();
+    const cloudData = await loadFromCloud();
+    if (cloudData && cloudData.standings && cloudData.standings.length) {
+      data = cloudData;
     }
   } catch (e) {
-    console.log("JSON file not found yet.");
+    console.log('Could not load from Gist, checking localStorage');
   }
-
-  // Fallback to localStorage
+  
+  // Fallback to localStorage if Gist fails
   if (!data) {
     try {
       const raw = localStorage.getItem('efootball_tournament');
       if (raw) data = JSON.parse(raw);
-    } catch (e) {}
+    } catch (e) { return; }
   }
-
+  
   if (!data) return;
 
   show('liveTag');
@@ -92,11 +100,9 @@ async function loadData() {
     document.getElementById('statPlayers').textContent = data.standings.length;
     document.getElementById('statMatches').textContent = data.played || 0;
     document.getElementById('statLeader').textContent = data.standings[0]?.name || '—';
-
     renderStandings(data.standings);
     renderPodium(data.standings);
     renderTicker(data.standings);
-
     const tt = document.getElementById('totalMatchTag');
     tt.classList.remove('hidden');
     tt.textContent = data.standings.length + ' players';
@@ -171,7 +177,7 @@ function renderTicker(standings) {
   show('tickerWrap');
 }
 
-/* ── BUILD MATCHUPS ──────────────────────────────────────── */
+/* ── BUILD MATCHUP MAP ───────────────────────────────────── */
 function buildMatchups(fixtures) {
   const map = {};
   fixtures.forEach(ro => {
@@ -199,7 +205,7 @@ function renderFixtures(fixtures) {
   });
 
   let html = '';
-  Object.keys(rounds).sort((a, b) => parseInt(a) - parseInt(b)).forEach(round => {
+  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
     html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
     rounds[round].forEach(mu => {
       html += `<div class="fx-card">
@@ -220,7 +226,7 @@ function renderResults(fixtures) {
   const map = buildMatchups(fixtures);
   const rounds = {};
   Object.values(map).forEach(mu => {
-    const hasScore = mu.legs.some(l => l.homeScore && l.awayScore);
+    const hasScore = mu.legs.some(l => l.homeScore !== '' && l.homeScore !== undefined && l.awayScore !== '' && l.awayScore !== undefined);
     if (!hasScore) return;
     if (!rounds[mu.round]) rounds[mu.round] = [];
     rounds[mu.round].push(mu);
@@ -229,7 +235,7 @@ function renderResults(fixtures) {
   if (!Object.keys(rounds).length) return;
 
   let html = '';
-  Object.keys(rounds).sort((a, b) => parseInt(a) - parseInt(b)).forEach(round => {
+  Object.keys(rounds).sort((a, b) => a - b).forEach(round => {
     html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
     rounds[round].forEach(mu => {
       let p1Total = 0, p2Total = 0, legsPlayed = 0;
@@ -237,18 +243,17 @@ function renderResults(fixtures) {
 
       mu.legs.forEach(l => {
         const hs = l.homeScore, as = l.awayScore;
-        if (!hs || !as) return;
+        if (hs === '' || hs === undefined || as === '' || as === undefined) return;
         const h = parseInt(hs), a = parseInt(as);
         legsPlayed++;
         if (l.home === mu.p1) { p1Total += h; p2Total += a; }
-        else { p1Total += a; p2Total += h; }
+        else                  { p1Total += a; p2Total += h; }
         legDetails.push({ leg: l.leg, home: l.home, away: l.away, h, a });
       });
 
       const bothLegs = legsPlayed === 2;
       const resultCls = p1Total > p2Total ? 'played' : p2Total > p1Total ? 'played away-win' : 'played draw';
       const cardCls = bothLegs ? resultCls : 'played';
-
       const breakdown = legDetails.map(d => `Leg ${d.leg}: ${d.home} ${d.h}–${d.a} ${d.away}`).join(' · ');
 
       html += `<div class="fx-card ${cardCls}" title="${breakdown}">`;
@@ -272,6 +277,7 @@ function renderResults(fixtures) {
             <span class="fx-p" style="${p2g > p1g ? 'color:var(--green)' : p1g > p2g ? 'color:var(--red)' : ''}">${mu.p2}</span>
           </div>`;
       }
+
       html += `</div>`;
     });
     html += `</div>`;
@@ -280,7 +286,6 @@ function renderResults(fixtures) {
   document.getElementById('resultsContainer').innerHTML = html;
 }
 
-/* ── INIT ─────────────────────────────────────────────────── */
+/* ── INIT & POLL ─────────────────────────────────────────── */
 loadData();
-setInterval(loadData, 15000);   // Auto refresh every 15 seconds
-</DOCUMENT>
+setInterval(loadData, 15000);
