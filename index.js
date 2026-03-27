@@ -1,10 +1,15 @@
-<script>
-// index.js - FULL FILE
-const ADMIN_PASSWORD = 'adminjahim';
+// index.js - FIXED VERSION
 
+const ADMIN_PASSWORD = 'adminjahim';   // Must match the one in admin.js
+
+/* ADMIN LOGIN FROM PUBLIC PAGE */
 function openAdminPanel() {
   document.getElementById('adminPanel').classList.add('open');
-  setTimeout(() => document.getElementById('loginPassword').focus(), 50);
+  setTimeout(() => {
+    const pwField = document.getElementById('loginPassword');
+    pwField.value = '';
+    pwField.focus();
+  }, 100);
 }
 
 function closeAdminPanel() {
@@ -13,26 +18,19 @@ function closeAdminPanel() {
   document.getElementById('loginPassword').value = '';
 }
 
-function doLogin() {
-  const pw = document.getElementById('loginPassword').value;
+function doLoginFromPublic() {
+  const pw = document.getElementById('loginPassword').value.trim();
   if (pw === ADMIN_PASSWORD) {
     sessionStorage.setItem('admin_auth', '1');
     window.location.href = 'admin.htm';
   } else {
-    document.getElementById('loginError').classList.add('show');
+    const err = document.getElementById('loginError');
+    err.textContent = "Incorrect password. Please try again.";
+    err.classList.add('show');
     document.getElementById('loginPassword').value = '';
     document.getElementById('loginPassword').focus();
   }
 }
-
-document.getElementById('loginPassword').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-  if (e.key === 'Escape') closeAdminPanel();
-});
-
-document.getElementById('adminPanel').addEventListener('click', e => {
-  if (e.target === document.getElementById('adminPanel')) closeAdminPanel();
-});
 
 /* TABS */
 function switchTab(btn, panelId) {
@@ -43,18 +41,19 @@ function switchTab(btn, panelId) {
 }
 
 function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
-function show(id) { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); }
+function show(id) { 
+  const el = document.getElementById(id); 
+  if (el) el.classList.remove('hidden'); 
+}
 
-/* LOAD DATA - Now prefers data.json */
+/* LOAD DATA FROM data.json */
 async function loadData() {
   let data = null;
 
   try {
-    const res = await fetch('data.json?' + Date.now()); // cache bust
+    const res = await fetch('data.json?' + Date.now());
     if (res.ok) data = await res.json();
-  } catch (e) {
-    console.log('data.json not found, trying localStorage (for testing)');
-  }
+  } catch (e) {}
 
   if (!data) {
     try {
@@ -93,7 +92,7 @@ async function loadData() {
   }
 }
 
-/* Render functions (same as before) */
+/* Render functions remain the same as previous version */
 function renderStandings(standings) {
   let html = `<div class="tbl-wrap"><table class="stable">
     <thead><tr>
@@ -149,8 +148,7 @@ function renderTicker(standings) {
       <span class="sep">///</span>
     </span>`;
   });
-  const ti = document.getElementById('tickerInner');
-  ti.innerHTML = html + html;
+  document.getElementById('tickerInner').innerHTML = html + html;
   show('tickerWrap');
 }
 
@@ -180,7 +178,7 @@ function renderFixtures(fixtures) {
   });
 
   let html = '';
-  Object.keys(rounds).sort((a,b)=>a-b).forEach(round => {
+  Object.keys(rounds).sort((a,b) => a-b).forEach(round => {
     html += `<div class="rl">Round ${round}</div><div class="fx-grid">`;
     rounds[round].forEach(mu => {
       html += `<div class="fx-card">
@@ -216,9 +214,8 @@ function renderResults(fixtures) {
       const legDetails = [];
 
       mu.legs.forEach(l => {
-        const hs = l.homeScore, as = l.awayScore;
-        if (hs === '' || as === '') return;
-        const h = parseInt(hs), a = parseInt(as);
+        if (l.homeScore === '' || l.awayScore === '') return;
+        const h = parseInt(l.homeScore), a = parseInt(l.awayScore);
         legsPlayed++;
         if (l.home === mu.p1) { p1Total += h; p2Total += a; }
         else { p1Total += a; p2Total += h; }
@@ -226,10 +223,11 @@ function renderResults(fixtures) {
       });
 
       const bothLegs = legsPlayed === 2;
-      const cardCls = bothLegs ? (p1Total > p2Total ? 'played' : p2Total > p1Total ? 'played away-win' : 'played draw') : 'played';
-      const breakdown = legDetails.map(d => `Leg ${d.leg}: ${d.home} ${d.h}–${d.a} ${d.away}`).join(' · ');
+      const cardCls = bothLegs 
+        ? (p1Total > p2Total ? 'played' : p2Total > p1Total ? 'played away-win' : 'played draw') 
+        : 'played';
 
-      html += `<div class="fx-card ${cardCls}" title="${breakdown}">`;
+      html += `<div class="fx-card ${cardCls}" title="${legDetails.map(d => `Leg ${d.leg}: ${d.home} ${d.h}–${d.a} ${d.away}`).join(' · ')}">`;
 
       if (bothLegs) {
         html += `<span class="fx-ltag agg">Aggregate</span>
@@ -237,8 +235,7 @@ function renderResults(fixtures) {
             <span class="fx-p r" style="${p1Total > p2Total ? 'color:var(--green)' : p2Total > p1Total ? 'color:var(--red)' : ''}">${mu.p1}</span>
             <span class="fx-score">${p1Total} – ${p2Total}</span>
             <span class="fx-p" style="${p2Total > p1Total ? 'color:var(--green)' : p1Total > p2Total ? 'color:var(--red)' : ''}">${mu.p2}</span>
-          </div>
-          <div class="fx-legs">${legDetails.map(d => `<span>Leg ${d.leg}: ${d.home === mu.p1 ? d.h+'-'+d.a : d.a+'-'+d.h}</span>`).join('')}</div>`;
+          </div>`;
       } else {
         const d = legDetails[0];
         const p1g = d.home === mu.p1 ? d.h : d.a;
@@ -255,10 +252,9 @@ function renderResults(fixtures) {
     html += `</div>`;
   });
 
-  document.getElementById('resultsContainer').innerHTML = html;
+  document.getElementById('resultsContainer').innerHTML = html || '<div class="empty"><div class="eico">🎯</div><h3>No results yet</h3><p>Match results will appear here once entered by the admin.</p></div>';
 }
 
 /* INIT */
 loadData();
-setInterval(loadData, 15000); // refresh every 15s
-</script>
+setInterval(loadData, 15000);
