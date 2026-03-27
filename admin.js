@@ -1,3 +1,4 @@
+<DOCUMENT filename="admin.js">
 /* ── AUTH ──────────────────────────────────────────────────── */
 const ADMIN_PASSWORD = 'adminjahim'; // Change this password
 
@@ -13,7 +14,6 @@ function doLogin() {
     sessionStorage.setItem('admin_auth', '1');
     document.getElementById('loginOverlay').style.display = 'none';
     document.getElementById('loginError').classList.remove('show');
-    loadDraft();
   } else {
     document.getElementById('loginError').classList.add('show');
     document.getElementById('loginPassword').value = '';
@@ -32,11 +32,10 @@ let players = [], fixtures = [];
 
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
 
-/* ── PERSISTENCE (LOCAL DRAFT) ─────────────────────────────── */
+/* ── PERSISTENCE ──────────────────────────────────────────── */
 const DRAFT_KEY = 'efootball_admin_draft';
 
 function saveDraft() {
-  // Snapshot current score inputs into fixtures before saving
   fixtures.forEach(ro => {
     ro.matches.forEach(m => {
       const he = document.getElementById('hs_' + m.id);
@@ -58,10 +57,8 @@ function loadDraft() {
     players = draft.players;
     fixtures = draft.fixtures || [];
 
-    // Restore the player textarea
     document.getElementById('playerInput').value = players.join('\n');
 
-    // Show player tag
     const tag = document.getElementById('playerTag');
     tag.classList.remove('hidden');
     tag.textContent = '✓ ' + players.length + ' players';
@@ -72,7 +69,6 @@ function loadDraft() {
       show('fixturesSection');
       show('resultsSection');
 
-      // Restore saved scores into the inputs
       fixtures.forEach(ro => {
         ro.matches.forEach(m => {
           const he = document.getElementById('hs_' + m.id);
@@ -211,7 +207,7 @@ function renderResultsTable() {
   document.getElementById('resultsBody').innerHTML = html;
 }
 
-/* ── SCORE INPUT: mark + debounced autosave ───────────────── */
+/* ── SCORE INPUT ───────────────────────────────────────────── */
 let saveTimer = null;
 
 function onScoreInput(id) {
@@ -230,7 +226,6 @@ function flashSaveIndicator() {
   setTimeout(() => el.classList.remove('visible'), 2000);
 }
 
-/* ── MARK RESULT ──────────────────────────────────────────── */
 function mark(id) {
   const hs = document.getElementById('hs_' + id).value;
   const as = document.getElementById('as_' + id).value;
@@ -270,7 +265,7 @@ function calculateStandings() {
     return b.GF - a.GF;
   });
   renderStandings(sorted);
-  window._data = { players, fixtures: JSON.parse(JSON.stringify(fixtures)), standings: sorted.map(([name, s], i) => ({ pos: i + 1, name, ...s })), played, updated: new Date().toISOString() };
+  window._data = { players, fixtures, standings: sorted.map(([name, s], i) => ({ pos: i + 1, name, ...s })), played, updated: new Date().toISOString() };
   const mp = document.getElementById('matchesPlayed');
   mp.classList.remove('hidden');
   mp.textContent = played + ' results entered';
@@ -284,11 +279,11 @@ function fi(r) { return r === 'W' ? '✅' : r === 'L' ? '❌' : '➖'; }
 
 function renderStandings(sorted) {
   let html = `<table class="stable">
-    <thead>
+    <thead><tr>
       <th style="width:36px">Pos</th><th class="tl">Player</th>
       <th>P</th><th>W</th><th>D</th><th>L</th>
       <th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Form</th>
-    </thead><tbody>`;
+    </tr></thead><tbody>`;
   sorted.forEach(([name, s], i) => {
     const pos = i + 1;
     const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos;
@@ -307,11 +302,13 @@ function renderStandings(sorted) {
   document.getElementById('standingsContainer').innerHTML = html;
 }
 
-/* ── PUBLISH TO JSON FILE ────────────────────────────────── */
+/* ── PUBLISH (Fixed for GitHub Pages) ───────────────────── */
 function publishData() {
-  if (!window._data) { alert('Calculate standings first.'); return; }
-  
-  // Update fixtures with latest scores
+  if (!window._data) {
+    alert('Calculate standings first.');
+    return;
+  }
+
   window._data.fixtures = fixtures.map(ro => ({
     ...ro, matches: ro.matches.map(m => {
       const he = document.getElementById('hs_' + m.id);
@@ -319,35 +316,36 @@ function publishData() {
       return { ...m, homeScore: he ? he.value : '', awayScore: ae ? ae.value : '' };
     })
   }));
-  
-  // Save to PHP endpoint
-  fetch('data.php', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(window._data)
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      const pb = document.getElementById('publishBox');
-      pb.classList.add('show');
-      pb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      
-      // Auto-hide after 5 seconds
-      setTimeout(() => {
-        pb.classList.remove('show');
-      }, 5000);
-    } else {
-      alert('Error publishing data: ' + (data.error || 'Unknown error'));
-    }
-  })
-  .catch(error => {
-    console.error('Error publishing:', error);
-    alert('Error publishing data. Make sure the server is accessible.');
-  });
+
+  const jsonData = JSON.stringify(window._data, null, 2);
+
+  // Download the file
+  const blob = new Blob([jsonData], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'tournament-data.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  // Backup in localStorage
+  localStorage.setItem('efootball_tournament', jsonData);
+
+  const pb = document.getElementById('publishBox');
+  pb.classList.add('show');
+  pb.innerHTML = `
+    <span>✅</span>
+    <p><strong>tournament-data.json</strong> downloaded!<br>
+    <small>1. Upload this file to the root of your GitHub repository<br>
+    2. Commit the changes<br>
+    3. Wait 1-2 minutes and refresh the public page</small></p>
+  `;
+
+  alert("✅ File downloaded!\n\nUpload 'tournament-data.json' to your GitHub repo root folder and commit it.");
 }
 
 /* ── INIT ─────────────────────────────────────────────────── */
 loadDraft();
+</DOCUMENT>
