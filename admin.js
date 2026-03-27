@@ -1,6 +1,11 @@
-<DOCUMENT filename="admin.js">
 /* ── AUTH ──────────────────────────────────────────────────── */
 const ADMIN_PASSWORD = 'adminjahim'; // Change this password
+
+// GitHub Gist Configuration - REPLACE WITH YOUR ACTUAL VALUES
+const GIST_ID = 'bcdc1b9c3be807e8d5afff6c9243c692'; // e.g., 'abc123def456'
+const GITHUB_TOKEN = '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'; // Your personal access token
+const GIST_API_URL = `https://api.github.com/gists/${GIST_ID}`;
+const GIST_RAW_URL = `https://gist.githubusercontent.com/raw/${GIST_ID}/tournament-data.json`;
 
 function checkLogin() {
   if (sessionStorage.getItem('admin_auth') === '1') {
@@ -35,7 +40,70 @@ function show(id) { document.getElementById(id).classList.remove('hidden'); }
 /* ── PERSISTENCE ──────────────────────────────────────────── */
 const DRAFT_KEY = 'efootball_admin_draft';
 
+// Save to GitHub Gist
+async function saveToCloud(data) {
+  try {
+    // Get current gist to get latest version
+    const getResponse = await fetch(GIST_API_URL, {
+      headers: {
+        'Authorization': `token ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+    
+    if (!getResponse.ok) {
+      throw new Error(`Failed to fetch gist: ${getResponse.status}`);
+    }
+    
+    const gistData = await getResponse.json();
+    
+    // Update the gist with new data
+    const updateResponse = await fetch(GIST_API_URL, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `token ${GITHUB_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json'
+      },
+      body: JSON.stringify({
+        files: {
+          'tournament-data.json': {
+            content: JSON.stringify(data, null, 2)
+          }
+        }
+      })
+    });
+    
+    if (updateResponse.ok) {
+      console.log('Data published to Gist successfully');
+      return true;
+    } else {
+      console.error('Failed to update gist:', await updateResponse.text());
+      return false;
+    }
+  } catch (error) {
+    console.error('Error saving to Gist:', error);
+    return false;
+  }
+}
+
+// Load from GitHub Gist (read-only, no token needed for public gists)
+async function loadFromCloud() {
+  try {
+    const response = await fetch(GIST_RAW_URL);
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading from Gist:', error);
+    return null;
+  }
+}
+
 function saveDraft() {
+  // Snapshot current score inputs into fixtures before saving
   fixtures.forEach(ro => {
     ro.matches.forEach(m => {
       const he = document.getElementById('hs_' + m.id);
@@ -57,8 +125,10 @@ function loadDraft() {
     players = draft.players;
     fixtures = draft.fixtures || [];
 
+    // Restore the player textarea
     document.getElementById('playerInput').value = players.join('\n');
 
+    // Show player tag
     const tag = document.getElementById('playerTag');
     tag.classList.remove('hidden');
     tag.textContent = '✓ ' + players.length + ' players';
@@ -69,6 +139,7 @@ function loadDraft() {
       show('fixturesSection');
       show('resultsSection');
 
+      // Restore saved scores into the inputs
       fixtures.forEach(ro => {
         ro.matches.forEach(m => {
           const he = document.getElementById('hs_' + m.id);
@@ -207,7 +278,7 @@ function renderResultsTable() {
   document.getElementById('resultsBody').innerHTML = html;
 }
 
-/* ── SCORE INPUT ───────────────────────────────────────────── */
+/* ── SCORE INPUT: mark + debounced autosave ───────────────── */
 let saveTimer = null;
 
 function onScoreInput(id) {
@@ -226,6 +297,7 @@ function flashSaveIndicator() {
   setTimeout(() => el.classList.remove('visible'), 2000);
 }
 
+/* ── MARK RESULT ──────────────────────────────────────────── */
 function mark(id) {
   const hs = document.getElementById('hs_' + id).value;
   const as = document.getElementById('as_' + id).value;
@@ -265,7 +337,13 @@ function calculateStandings() {
     return b.GF - a.GF;
   });
   renderStandings(sorted);
-  window._data = { players, fixtures, standings: sorted.map(([name, s], i) => ({ pos: i + 1, name, ...s })), played, updated: new Date().toISOString() };
+  window._data = { players, fixtures: fixtures.map(ro => ({
+    ...ro, matches: ro.matches.map(m => {
+      const he = document.getElementById('hs_' + m.id);
+      const ae = document.getElementById('as_' + m.id);
+      return { ...m, homeScore: he ? he.value : '', awayScore: ae ? ae.value : '' };
+    })
+  })), standings: sorted.map(([name, s], i) => ({ pos: i + 1, name, ...s })), played, updated: new Date().toISOString() };
   const mp = document.getElementById('matchesPlayed');
   mp.classList.remove('hidden');
   mp.textContent = played + ' results entered';
@@ -302,13 +380,11 @@ function renderStandings(sorted) {
   document.getElementById('standingsContainer').innerHTML = html;
 }
 
-/* ── PUBLISH (Fixed for GitHub Pages) ───────────────────── */
-function publishData() {
-  if (!window._data) {
-    alert('Calculate standings first.');
-    return;
-  }
-
+/* ── PUBLISH ────────────────────────────────────────────────── */
+async function publishData() {
+  if (!window._data) { alert('Calculate standings first.'); return; }
+  
+  // Update fixtures with latest scores
   window._data.fixtures = fixtures.map(ro => ({
     ...ro, matches: ro.matches.map(m => {
       const he = document.getElementById('hs_' + m.id);
@@ -316,36 +392,27 @@ function publishData() {
       return { ...m, homeScore: he ? he.value : '', awayScore: ae ? ae.value : '' };
     })
   }));
-
-  const jsonData = JSON.stringify(window._data, null, 2);
-
-  // Download the file
-  const blob = new Blob([jsonData], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'tournament-data.json';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-
-  // Backup in localStorage
-  localStorage.setItem('efootball_tournament', jsonData);
-
+  
+  // Save locally
+  localStorage.setItem('efootball_tournament', JSON.stringify(window._data));
+  saveDraft();
+  
+  // Save to Gist for public access
+  const success = await saveToCloud(window._data);
+  
   const pb = document.getElementById('publishBox');
-  pb.classList.add('show');
-  pb.innerHTML = `
-    <span>✅</span>
-    <p><strong>tournament-data.json</strong> downloaded!<br>
-    <small>1. Upload this file to the root of your GitHub repository<br>
-    2. Commit the changes<br>
-    3. Wait 1-2 minutes and refresh the public page</small></p>
-  `;
-
-  alert("✅ File downloaded!\n\nUpload 'tournament-data.json' to your GitHub repo root folder and commit it.");
+  if (success) {
+    pb.innerHTML = '<span>✅</span><p>Published to GitHub Gist! Players can now see live standings.</p>';
+    pb.classList.add('show');
+    setTimeout(() => {
+      pb.classList.remove('show');
+    }, 5000);
+  } else {
+    pb.innerHTML = '<span>⚠️</span><p>Failed to publish. Check console for errors.</p>';
+    pb.classList.add('show');
+  }
+  pb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /* ── INIT ─────────────────────────────────────────────────── */
 loadDraft();
-</DOCUMENT>
