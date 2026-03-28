@@ -65,11 +65,11 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-/* ── PERSISTENCE (localStorage draft) ─────────────────────── */
+/* ── PERSISTENCE (localStorage + cloud cross-device sync) ──── */
 const DRAFT_KEY = 'efootball_admin_draft';
 
-function saveDraft() {
-  // Snapshot current score inputs into fixtures before saving
+// Snapshot score inputs into the fixtures array
+function snapshotScores() {
   fixtures.forEach(ro => {
     ro.matches.forEach(m => {
       const he = document.getElementById('hs_' + m.id);
@@ -78,53 +78,126 @@ function saveDraft() {
       if (ae) m.awayScore = ae.value;
     });
   });
-  localStorage.setItem(DRAFT_KEY, JSON.stringify({ players, fixtures }));
 }
 
-function loadDraft() {
+function saveDraft() {
+  snapshotScores();
+  const draft = { players, fixtures, _saved: new Date().toISOString() };
+  // Always write locally for instant same-device restore
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  // Debounced cloud sync so any device can pick it up
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(() => syncDraftToCloud(draft), 1500);
+}
+
+let cloudSaveTimer = null;
+
+// Merges the draft into the bin alongside published data under key "_draft"
+async function syncDraftToCloud(draft) {
+  if (!JSONBIN_KEY || JSONBIN_KEY === 'PASTE_YOUR_SECRET_KEY_HERE') return;
+  try {
+    // Read current bin so we don't overwrite published tournament data
+    const res = await fetch(JSONBIN_URL + '/latest', {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    let current = {};
+    if (res.ok) {
+      const json = await res.json();
+      current = json.record || {};
+    }
+    // Write back with draft embedded
+    const updated = { ...current, _draft: draft };
+    const put = await fetch(JSONBIN_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_KEY,
+        'X-Bin-Versioning': 'false'
+      },
+      body: JSON.stringify(updated)
+    });
+    if (put.ok) { console.log('Draft synced to cloud ✓'); }
+    else        { console.warn('Draft cloud sync failed:', put.status); }
+  } catch (err) {
+    console.warn('syncDraftToCloud error:', err);
+  }
+}
+
+async function loadDraft() {
+  // 1. Try cloud first — works on any device, no setup needed
+  if (JSONBIN_KEY && JSONBIN_KEY !== 'PASTE_YOUR_SECRET_KEY_HERE') {
+    try {
+      const res = await fetch(JSONBIN_URL + '/latest', {
+        headers: { 'X-Master-Key': JSONBIN_KEY }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const cloudDraft = json.record?._draft;
+        if (cloudDraft && cloudDraft.players && cloudDraft.players.length) {
+          // Compare timestamps: use whichever is newer
+          let localDraft = null;
+          try { localDraft = JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch (e) {}
+          const cloudTime = new Date(cloudDraft._saved || 0).getTime();
+          const localTime = new Date(localDraft?._saved || 0).getTime();
+          const draft     = cloudTime >= localTime ? cloudDraft : localDraft;
+          if (applyDraft(draft)) {
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); // keep local in sync
+            console.log('Draft restored from', cloudTime >= localTime ? 'cloud ☁️' : 'localStorage');
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Cloud draft fetch failed, falling back to localStorage:', e);
+    }
+  }
+
+  // 2. Fallback: localStorage (same device / offline)
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
     const draft = JSON.parse(raw);
-    if (!draft.players || !draft.players.length) return;
-
-    players  = draft.players;
-    fixtures = draft.fixtures || [];
-
-    // Restore the player textarea
-    const playerInput = document.getElementById('playerInput');
-    if (playerInput) playerInput.value = players.join('\n');
-
-    // Show player tag
-    const tag = document.getElementById('playerTag');
-    if (tag) {
-      tag.classList.remove('hidden');
-      tag.textContent = '✓ ' + players.length + ' players';
-    }
-
-    if (fixtures.length) {
-      renderFixtures();
-      renderResultsTable();
-      show('fixturesSection');
-      show('resultsSection');
-
-      // Restore saved scores into the inputs (inputs exist now after render)
-      fixtures.forEach(ro => {
-        ro.matches.forEach(m => {
-          const he = document.getElementById('hs_' + m.id);
-          const ae = document.getElementById('as_' + m.id);
-          if (he && m.homeScore !== '') he.value = m.homeScore;
-          if (ae && m.awayScore !== '') ae.value = m.awayScore;
-          if (m.homeScore !== '' || m.awayScore !== '') mark(m.id);
-        });
-      });
-
-      showDraftBanner();
-    }
-    console.log('Draft restored');
+    if (applyDraft(draft)) console.log('Draft restored from localStorage');
   } catch (e) {
     console.warn('Could not restore draft:', e);
   }
+}
+
+// Apply a draft object to the UI
+function applyDraft(draft) {
+  if (!draft || !draft.players || !draft.players.length) return false;
+
+  players  = draft.players;
+  fixtures = draft.fixtures || [];
+
+  const playerInput = document.getElementById('playerInput');
+  if (playerInput) playerInput.value = players.join('\n');
+
+  const tag = document.getElementById('playerTag');
+  if (tag) {
+    tag.classList.remove('hidden');
+    tag.textContent = '✓ ' + players.length + ' players';
+  }
+
+  if (fixtures.length) {
+    renderFixtures();
+    renderResultsTable();
+    show('fixturesSection');
+    show('resultsSection');
+
+    fixtures.forEach(ro => {
+      ro.matches.forEach(m => {
+        const he = document.getElementById('hs_' + m.id);
+        const ae = document.getElementById('as_' + m.id);
+        if (he && m.homeScore !== '') he.value = m.homeScore;
+        if (ae && m.awayScore !== '') ae.value = m.awayScore;
+        if (m.homeScore !== '' || m.awayScore !== '') mark(m.id);
+      });
+    });
+
+    showDraftBanner();
+  }
+  return true;
 }
 
 function showDraftBanner() {
@@ -137,6 +210,23 @@ function clearDraft() {
   localStorage.removeItem(DRAFT_KEY);
   players  = [];
   fixtures = [];
+
+  // Wipe the cloud draft too so other devices don't restore stale data
+  if (JSONBIN_KEY && JSONBIN_KEY !== 'PASTE_YOUR_SECRET_KEY_HERE') {
+    fetch(JSONBIN_URL + '/latest', { headers: { 'X-Master-Key': JSONBIN_KEY } })
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (!json) return;
+        const current = json.record || {};
+        delete current._draft;
+        return fetch(JSONBIN_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Versioning': 'false' },
+          body: JSON.stringify(current)
+        });
+      })
+      .catch(() => {});
+  }
 
   const playerInput = document.getElementById('playerInput');
   if (playerInput) playerInput.value = '';
@@ -159,13 +249,21 @@ function clearDraft() {
   console.log('Draft cleared');
 }
 
-/* ── CLOUD (JSONBin.io) ────────────────────────────────────── */
+/* ── CLOUD (JSONBin.io) — publish tournament data ──────────── */
 async function saveToCloud(data) {
   if (!JSONBIN_KEY || JSONBIN_KEY === 'PASTE_YOUR_SECRET_KEY_HERE') {
     console.warn('No JSONBin key set — skipping cloud save.');
     return false;
   }
   try {
+    // Preserve any existing _draft in the bin when publishing
+    let existing = {};
+    try {
+      const r = await fetch(JSONBIN_URL + '/latest', { headers: { 'X-Master-Key': JSONBIN_KEY } });
+      if (r.ok) { const j = await r.json(); existing = j.record || {}; }
+    } catch (e) {}
+
+    const payload = { ...data, _draft: existing._draft || null };
     const res = await fetch(JSONBIN_URL, {
       method: 'PUT',
       headers: {
@@ -173,9 +271,9 @@ async function saveToCloud(data) {
         'X-Master-Key': JSONBIN_KEY,
         'X-Bin-Versioning': 'false'
       },
-      body: JSON.stringify(data)
+      body: JSON.stringify(payload)
     });
-    if (res.ok) { console.log('Saved to JSONBin ✓'); return true; }
+    if (res.ok) { console.log('Published to JSONBin ✓'); return true; }
     console.error('JSONBin update failed:', res.status, await res.text());
     return false;
   } catch (err) {
