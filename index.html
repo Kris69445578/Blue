@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>eFootball Tournament — Live Standings</title>
+<title>eFootball-JKUAT league — Live Standings</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
 <link rel="stylesheet" href="index.css">
@@ -16,7 +16,7 @@
     <button class="login-close" onclick="closeAdminPanel()">✕</button>
     <div class="login-logo">
       <div class="logo-ico">⚽</div>
-      <div class="logo-txt">e<span>Football</span> Tournament</div>
+      <div class="logo-txt">e<span>eFootball</span> league</div>
     </div>
     <h2>Admin Access</h2>
     <p>Enter your password to access the admin panel.</p>
@@ -34,7 +34,7 @@
   <div class="hdr">
     <div class="logo">
       <div class="logo-ico">⚽</div>
-      <div class="logo-txt">e<span>Football</span> Tournament</div>
+      <div class="logo-txt">e<span>eFootball</span> League</div>
     </div>
     <span class="live-dot hidden" id="liveTag">Live</span>
   </div>
@@ -48,7 +48,7 @@
 <!-- HERO -->
 <div class="hero">
   <div class="hero-inner">
-    <h1>Tournament <span>Standings</span></h1>
+    <h1>League <span>Standings</span></h1>
     <p class="hero-sub">Updated automatically when the admin publishes new results.</p>
     <div class="hero-stats" id="heroStats" style="display:none">
       <div class="hstat">
@@ -79,7 +79,7 @@
   <!-- MAIN CARD -->
   <div class="card" style="margin-top:24px">
     <div class="card-head">
-      <span class="card-title">🏆 Tournament Overview</span>
+      <span class="card-title">🏆 League Overview</span>
       <div class="card-right">
         <span class="tag tg-blue hidden" id="totalMatchTag"></span>
       </div>
@@ -129,7 +129,7 @@
 </main>
 
 <footer>
-  eFootball Tournament · <button id="adminLink" onclick="openAdminPanel()">Admin Panel</button> · Refreshes every 15 seconds
+  eFootball League · <button id="adminLink" onclick="openAdminPanel()">Admin Panel</button> · Refreshes every 15 seconds
 </footer>
 
 <script src="index.js"></script>
