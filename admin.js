@@ -17,6 +17,14 @@ function checkLogin() {
   }
 }
 
+function showLoadingBanner() {
+  const banner = document.getElementById('draftBanner');
+  if (banner) {
+    banner.classList.remove('hidden');
+    banner.innerHTML = '<span style="color:var(--muted);font-size:.84rem">☁️ Syncing from cloud…</span>';
+  }
+}
+
 function doLogin() {
   const pwInput = document.getElementById('loginPassword');
   const errorEl = document.getElementById('loginError');
@@ -26,6 +34,7 @@ function doLogin() {
     sessionStorage.setItem('admin_auth', '1');
     document.getElementById('loginOverlay').style.display = 'none';
     errorEl.classList.remove('show');
+    showLoadingBanner();
     loadDraft();
   } else {
     errorEl.classList.add('show');
@@ -42,8 +51,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
   checkLogin();
-  // Only auto-load draft if already logged in
   if (sessionStorage.getItem('admin_auth') === '1') {
+    showLoadingBanner();
     loadDraft();
   }
   console.log('Admin panel initialised');
@@ -92,75 +101,90 @@ function saveDraft() {
 
 let cloudSaveTimer = null;
 
-// Merges the draft into the bin alongside published data under key "_draft"
+// Saves draft under "_draft" key in the bin — reads first to preserve all other data
 async function syncDraftToCloud(draft) {
   if (!JSONBIN_KEY || JSONBIN_KEY === 'PASTE_YOUR_SECRET_KEY_HERE') return;
   try {
-    // Read current bin so we don't overwrite published tournament data
-    const res = await fetch(JSONBIN_URL + '/latest', {
-      headers: { 'X-Master-Key': JSONBIN_KEY }
-    });
+    // Always read current bin contents first so we never wipe published tournament data
     let current = {};
-    if (res.ok) {
-      const json = await res.json();
-      current = json.record || {};
+    const readRes = await fetch(JSONBIN_URL + '/latest', {
+      headers: { 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Meta': 'false' }
+    });
+    if (readRes.ok) {
+      const readJson = await readRes.json();
+      current = readJson.record || readJson || {};
     }
-    // Write back with draft embedded
-    const updated = { ...current, _draft: draft };
-    const put = await fetch(JSONBIN_URL, {
+
+    // Embed draft alongside existing data
+    current._draft = draft;
+
+    const putRes = await fetch(JSONBIN_URL, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'X-Master-Key': JSONBIN_KEY,
         'X-Bin-Versioning': 'false'
       },
-      body: JSON.stringify(updated)
+      body: JSON.stringify(current)
     });
-    if (put.ok) { console.log('Draft synced to cloud ✓'); }
-    else        { console.warn('Draft cloud sync failed:', put.status); }
+    if (putRes.ok) {
+      console.log('Draft synced to cloud ✓', draft._saved);
+      flashSaveIndicator();
+    } else {
+      const txt = await putRes.text();
+      console.warn('Draft cloud sync failed:', putRes.status, txt);
+    }
   } catch (err) {
     console.warn('syncDraftToCloud error:', err);
   }
 }
 
 async function loadDraft() {
-  // 1. Try cloud first — works on any device, no setup needed
+  let cloudDraft = null;
+
+  // 1. Always try cloud first — this is what makes cross-device work
   if (JSONBIN_KEY && JSONBIN_KEY !== 'PASTE_YOUR_SECRET_KEY_HERE') {
     try {
       const res = await fetch(JSONBIN_URL + '/latest', {
-        headers: { 'X-Master-Key': JSONBIN_KEY }
+        headers: { 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Meta': 'false' }
       });
       if (res.ok) {
         const json = await res.json();
-        const cloudDraft = json.record?._draft;
-        if (cloudDraft && cloudDraft.players && cloudDraft.players.length) {
-          // Compare timestamps: use whichever is newer
-          let localDraft = null;
-          try { localDraft = JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch (e) {}
-          const cloudTime = new Date(cloudDraft._saved || 0).getTime();
-          const localTime = new Date(localDraft?._saved || 0).getTime();
-          const draft     = cloudTime >= localTime ? cloudDraft : localDraft;
-          if (applyDraft(draft)) {
-            localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); // keep local in sync
-            console.log('Draft restored from', cloudTime >= localTime ? 'cloud ☁️' : 'localStorage');
-            return;
-          }
-        }
+        const record = json.record || json;
+        cloudDraft = record._draft || null;
+        console.log('Cloud bin read OK, _draft present:', !!cloudDraft);
+      } else {
+        console.warn('Cloud read failed:', res.status);
       }
     } catch (e) {
-      console.warn('Cloud draft fetch failed, falling back to localStorage:', e);
+      console.warn('Cloud draft fetch error:', e);
     }
   }
 
-  // 2. Fallback: localStorage (same device / offline)
+  // 2. Also read localStorage
+  let localDraft = null;
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
-    if (!raw) return;
-    const draft = JSON.parse(raw);
-    if (applyDraft(draft)) console.log('Draft restored from localStorage');
-  } catch (e) {
-    console.warn('Could not restore draft:', e);
+    if (raw) localDraft = JSON.parse(raw);
+  } catch (e) {}
+
+  // 3. Pick whichever is newer
+  const cloudTime = cloudDraft?._saved ? new Date(cloudDraft._saved).getTime() : 0;
+  const localTime = localDraft?._saved  ? new Date(localDraft._saved).getTime()  : 0;
+  const best = cloudTime >= localTime ? cloudDraft : localDraft;
+
+  if (!best || !best.players || !best.players.length) {
+    // Nothing to restore — clear the loading banner
+    const banner = document.getElementById('draftBanner');
+    if (banner) banner.classList.add('hidden');
+    console.log('No draft found anywhere');
+    return;
   }
+
+  console.log('Restoring draft from', cloudTime >= localTime ? 'cloud ☁️' : 'localStorage 💾', '—', best.players.length, 'players');
+  applyDraft(best);
+  // Keep localStorage in sync with whatever we loaded
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(best));
 }
 
 // Apply a draft object to the UI
@@ -195,14 +219,24 @@ function applyDraft(draft) {
       });
     });
 
-    showDraftBanner();
+    showDraftBanner(); // restores the real banner content
+  } else {
+    // No fixtures yet — just hide the loading banner
+    const banner = document.getElementById('draftBanner');
+    if (banner) banner.classList.add('hidden');
   }
   return true;
 }
 
 function showDraftBanner() {
   const banner = document.getElementById('draftBanner');
-  if (banner) banner.classList.remove('hidden');
+  if (!banner) return;
+  // Restore the real banner HTML (clear the "syncing…" loading state)
+  banner.innerHTML = `
+    <span>📝 Draft auto-saved — enter scores and publish when ready.</span>
+    <button class="draft-clear" onclick="clearDraft()">🗑 Clear & Start Over</button>
+  `;
+  banner.classList.remove('hidden');
 }
 
 function clearDraft() {
