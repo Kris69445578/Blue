@@ -387,23 +387,22 @@ function generateFixtures() {
 /* ── RENDER: FIXTURES LIST — admin view removed, public only ── */
 function renderFixtures() { /* fixtures shown on public page only */ }
 
-/* ── RENDER: RESULTS TABLE ─────────────────────────────────── */
+/* ── RENDER: RESULTS TABLE ─────────────────────────────────────── */
 function renderResultsTable() {
-  let html = '', idx = 1, lastLeg = null;
-
+  // Group by round number so Leg 1 & Leg 2 sit together under the same round
+  const roundMap = {};
   fixtures.forEach(ro => {
-    if (ro.leg !== lastLeg) {
-      lastLeg = ro.leg;
-      const color = ro.leg === 1 ? 'var(--accent)' : 'var(--orange)';
-      const icon  = ro.leg === 1 ? '🏠' : '✈️';
-      const title = ro.leg === 1 ? 'Leg 1 — First Leg' : 'Leg 2 — Second Leg';
-      html += `<tr class="rleg-row"><td colspan="7" style="color:${color}">${icon} ${title}</td></tr>`;
-    }
+    if (!roundMap[ro.round]) roundMap[ro.round] = { leg1: null, leg2: null };
+    if (ro.leg === 1) roundMap[ro.round].leg1 = ro;
+    else              roundMap[ro.round].leg2 = ro;
+  });
 
-    ro.matches.forEach(m => {
-      const bc = m.leg === 1 ? 'h' : 'a';
-      const bt = m.leg === 1 ? 'H' : 'A';
-      html += `<tr>
+  let html = '', idx = 1;
+
+  const matchRow = (m) => {
+    const bc = m.leg === 1 ? 'h' : 'a';
+    const bt = m.leg === 1 ? '\uD83C\uDFE0 L1' : '\u2708\uFE0F L2';
+    return `<tr>
         <td style="color:var(--dim);font-size:.78rem">${idx++}</td>
         <td class="pname tl">${escapeHtml(m.home)} <span class="lbadge ${bc}">${bt}</span></td>
         <td style="text-align:center">
@@ -418,12 +417,29 @@ function renderResultsTable() {
         <td class="pname tl">${escapeHtml(m.away)}</td>
         <td id="st_${m.id}" style="font-size:.8rem;color:var(--dim)">—</td>
       </tr>`;
-    });
+  };
+
+  Object.keys(roundMap).sort((a, b) => Number(a) - Number(b)).forEach(round => {
+    const { leg1, leg2 } = roundMap[round];
+
+    html += `<tr class="rleg-row"><td colspan="7" style="color:var(--muted)">Round ${round}</td></tr>`;
+
+    if (leg1) {
+      leg1.matches.forEach(m1 => {
+        html += matchRow(m1);
+        // Immediately follow with the Leg 2 counterpart (reversed home/away)
+        if (leg2) {
+          const m2 = leg2.matches.find(m => m.home === m1.away && m.away === m1.home);
+          if (m2) html += matchRow(m2);
+        }
+      });
+    }
   });
 
   const body = document.getElementById('resultsBody');
   if (body) body.innerHTML = html;
 }
+
 
 /* ── MARK RESULT CELL ──────────────────────────────────────── */
 function mark(id) {
