@@ -204,9 +204,7 @@ function applyDraft(draft) {
   }
 
   if (fixtures.length) {
-    renderFixtures();
     renderResultsTable();
-    show('fixturesSection');
     show('resultsSection');
 
     fixtures.forEach(ro => {
@@ -377,53 +375,17 @@ function generateFixtures() {
   }
   fixtures = [...L1, ...L2];
 
-  renderFixtures();
   renderResultsTable();
-  show('fixturesSection');
   show('resultsSection');
   showDraftBanner();
   saveDraft();
 
-  document.getElementById('fixturesSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
   console.log('Fixtures generated:', fixtures.length, 'rounds');
 }
 
-/* ── RENDER: FIXTURES LIST ─────────────────────────────────── */
-function renderFixtures() {
-  let total = 0, html = '', lastLeg = null;
-
-  fixtures.forEach(ro => {
-    if (ro.leg !== lastLeg) {
-      lastLeg = ro.leg;
-      const cls   = ro.leg === 1 ? 'lb1' : 'lb2';
-      const icon  = ro.leg === 1 ? '🏠' : '✈️';
-      const title = ro.leg === 1 ? 'Leg 1 — First Leg (Home)' : 'Leg 2 — Second Leg (Away)';
-      html += `<div class="leg-banner ${cls}">${icon} <strong>${title}</strong></div>`;
-    }
-
-    html += `<div class="rl">Round ${ro.round}</div><div class="fx-grid">`;
-    ro.matches.forEach(m => {
-      total++;
-      const tc = m.leg === 1 ? 'home' : 'away';
-      const tt = m.leg === 1 ? 'Home leg' : 'Away leg';
-      html += `<div class="fx-card">
-        <span class="fx-ltag ${tc}">${tt}</span>
-        <div class="fx-match">
-          <span class="fx-p r">${escapeHtml(m.home)}</span>
-          <span class="fx-vs">vs</span>
-          <span class="fx-p">${escapeHtml(m.away)}</span>
-        </div>
-      </div>`;
-    });
-    html += `</div>`;
-  });
-
-  const container = document.getElementById('fixturesContainer');
-  if (container) container.innerHTML = html;
-
-  const countEl = document.getElementById('fixtureCount');
-  if (countEl) countEl.textContent = total + ' matches · 2 legs';
-}
+/* ── RENDER: FIXTURES LIST — admin view removed, public only ── */
+function renderFixtures() { /* fixtures shown on public page only */ }
 
 /* ── RENDER: RESULTS TABLE ─────────────────────────────────── */
 function renderResultsTable() {
